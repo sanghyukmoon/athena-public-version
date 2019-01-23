@@ -12,4 +12,4 @@ open BC self-gravity module
 * Currently, gravitational acceleration is added simply as a source term, rather than flux using gravitational tensor.
 
 #### Usage
-compile with --grav=obc -fft
+compile with `--grav=obc -fft`
