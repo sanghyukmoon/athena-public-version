@@ -10,3 +10,6 @@ open BC self-gravity module
 * Includes self-gravity with vacuum (open) boundary condition via James algorithm **(Moon, Kim, & Ostriker, in prep.)**
 * Supports Cartesian and cylindrical coordinates.
 * Currently, gravitational acceleration is added simply as a source term, rather than flux using gravitational tensor.
+
+#### Usage
+compile with --grav=obc -fft
