@@ -38,6 +38,7 @@ class Reconstruction;
 class Hydro;
 class Field;
 class Gravity;
+class OBCGravityDriver;
 class MGGravityDriver;
 class EquationOfState;
 class FFTDriver;
@@ -150,6 +151,7 @@ class Mesh {
   friend class TurbulenceDriver;
   friend class MultigridDriver;
   friend class MGGravityDriver;
+  friend class OBCGravityDriver;
   friend class Gravity;
   friend class HydroDiffusion;
   friend class FieldDiffusion;
@@ -183,6 +185,7 @@ public:
   TurbulenceDriver *ptrbd;
   FFTGravityDriver *pfgrd;
   MGGravityDriver *pmgrd;
+  OBCGravityDriver *pogrd;
 
   AthenaArray<Real> *ruser_mesh_data;
   AthenaArray<int> *iuser_mesh_data;

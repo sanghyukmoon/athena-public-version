@@ -37,6 +37,8 @@ void ShowConfig(void) {
     std::cout<<"  Self Gravity:               FFT" << std::endl;
   } else if (SELF_GRAVITY_ENABLED == 2) {
     std::cout<<"  Self Gravity:               Multigrid" << std::endl;
+  } else if (SELF_GRAVITY_ENABLED == 3) {
+    std::cout<<"  Self Gravity:               James" << std::endl;
   } else {
     std::cout<<"  Self Gravity:               OFF" << std::endl;
   }

@@ -118,7 +118,7 @@ MeshBlock::MeshBlock(int igid, int ilid, LogicalLocation iloc, RegionSize input_
   }
 
   if (SELF_GRAVITY_ENABLED) pgrav = new Gravity(this, pin);
-  if (SELF_GRAVITY_ENABLED == 1) {
+  if ((SELF_GRAVITY_ENABLED == 1)||(SELF_GRAVITY_ENABLED == 3)) {
     pgbval = new GravityBoundaryValues(this,input_bcs);
   }
 
@@ -199,7 +199,7 @@ MeshBlock::MeshBlock(int igid, int ilid, Mesh *pm, ParameterInput *pin,
   //peos = new EquationOfState(this, pin);
 
   if (SELF_GRAVITY_ENABLED) pgrav = new Gravity(this, pin);
-  if (SELF_GRAVITY_ENABLED == 1) {
+  if ((SELF_GRAVITY_ENABLED == 1)||(SELF_GRAVITY_ENABLED == 3)) {
     pgbval = new GravityBoundaryValues(this,input_bcs);
   }
 
@@ -292,7 +292,7 @@ MeshBlock::~MeshBlock() {
   if (MAGNETIC_FIELDS_ENABLED) delete pfield;
   delete peos;
   if (SELF_GRAVITY_ENABLED) delete pgrav;
-  if (SELF_GRAVITY_ENABLED==1) delete pgbval;
+  if ((SELF_GRAVITY_ENABLED==1)||(SELF_GRAVITY_ENABLED==3)) delete pgbval;
 
   // delete user output variables array
   if (nuser_out_var > 0) {

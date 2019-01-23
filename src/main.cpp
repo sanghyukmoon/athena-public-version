@@ -36,6 +36,7 @@
 #include "globals.hpp"
 #include "gravity/fftgravity.hpp"
 #include "gravity/mggravity.hpp"
+#include "gravity/obcgravity.hpp"
 #include "mesh/mesh.hpp"
 #include "outputs/io_wrapper.hpp"
 #include "outputs/outputs.hpp"
@@ -389,6 +390,8 @@ int main(int argc, char *argv[]) {
         pmesh->pfgrd->Solve(stage, 0);
       else if (SELF_GRAVITY_ENABLED == 2) // multigrid
         pmesh->pmgrd->Solve(stage);
+      else if (SELF_GRAVITY_ENABLED == 3) // James
+        pmesh->pogrd->Solve(stage);
       ptlist->DoTaskListOneStage(pmesh, stage);
     }
 

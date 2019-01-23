@@ -34,6 +34,7 @@
 #include "../fft/athena_fft.hpp"
 #include "../fft/turbulence.hpp"
 #include "../globals.hpp"
+#include "../gravity/obcgravity.hpp"
 #include "../gravity/fftgravity.hpp"
 #include "../gravity/gravity.hpp"
 #include "../gravity/mggravity.hpp"
@@ -495,6 +496,8 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) {
     pfgrd = new FFTGravityDriver(this, pin);
   else if (SELF_GRAVITY_ENABLED==2)
     pmgrd = new MGGravityDriver(this, MGBoundaryFunction_, pin);
+  else if (SELF_GRAVITY_ENABLED==3)
+    pogrd = new OBCGravityDriver(this, pin);
 
   if (turb_flag > 0)
     ptrbd = new TurbulenceDriver(this, pin);
@@ -829,6 +832,8 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) {
     pfgrd = new FFTGravityDriver(this, pin);
   else if (SELF_GRAVITY_ENABLED==2)
     pmgrd = new MGGravityDriver(this, MGBoundaryFunction_, pin);
+  else if (SELF_GRAVITY_ENABLED==3)
+    pogrd = new OBCGravityDriver(this, pin);
 
   if (turb_flag > 0)
     ptrbd = new TurbulenceDriver(this, pin);
@@ -850,6 +855,7 @@ Mesh::~Mesh() {
   delete [] loclist;
   if (SELF_GRAVITY_ENABLED==1) delete pfgrd;
   else if (SELF_GRAVITY_ENABLED==2) delete pmgrd;
+  else if (SELF_GRAVITY_ENABLED==3) delete pogrd;
   if (turb_flag > 0) delete ptrbd;
   if (adaptive==true) { // deallocate arrays for AMR
     delete [] nref;
@@ -1268,6 +1274,8 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       pfgrd->Solve(1,0);
     else if (SELF_GRAVITY_ENABLED == 2)
       pmgrd->Solve(1);
+    else if (SELF_GRAVITY_ENABLED == 3)
+      pogrd->Solve(1);
 
 #pragma omp parallel num_threads(nthreads)
 {
