@@ -42,7 +42,6 @@ void Hydro::AddGravityFlux(void) {
       for (int i=is; i<=ie+1; ++i) {
         Real dx1 = pco->dx1v(i);
         phil = 0.5*(phi(k,j,i-1)+phi(k,j,i));
-        if((k-ks==32)&&(j-js==32)) std::cout << phi(k,j,i) << std::endl;
         // gx, gy, and gz centered at L and R x1-faces
         gxl =       (phi(k,j  ,i-1) - phi(k,j  ,i  ))/dx1;
         if (pmb->block_size.nx2 > 1) { // 2D or 3D

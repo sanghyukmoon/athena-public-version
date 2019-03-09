@@ -12,6 +12,7 @@
 // C++ headers
 #include <iostream>  // cout, endl
 #include <iomanip>   // setprecision, scientific
+#include <sstream>
 #include <cmath>
 #include <ctime>
 #include <mpi.h>
@@ -64,147 +65,67 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   SetGravityThreshold(eps);
   SetMeanDensity(0.0);
 
-  if(mesh_bcs[INNER_X1] == GetBoundaryFlag("user")) {
-    EnrollUserBoundaryFunction(INNER_X1, InnerX1);
-  }
-  if(mesh_bcs[OUTER_X1] == GetBoundaryFlag("user")) {
-    EnrollUserBoundaryFunction(OUTER_X1, OuterX1);
-  }
-  if(mesh_bcs[INNER_X2] == GetBoundaryFlag("user")) {
-    EnrollUserBoundaryFunction(INNER_X2, InnerX2);
-  }
-  if(mesh_bcs[OUTER_X2] == GetBoundaryFlag("user")) {
-    EnrollUserBoundaryFunction(OUTER_X2, OuterX2);
-  }
-  if(mesh_bcs[INNER_X3] == GetBoundaryFlag("user")) {
-    EnrollUserBoundaryFunction(INNER_X3, InnerX3);
-  }
-  if(mesh_bcs[OUTER_X3] == GetBoundaryFlag("user")) {
-    EnrollUserBoundaryFunction(OUTER_X3, OuterX3);
-  }
-
+//  if(mesh_bcs[INNER_X1] == GetBoundaryFlag("user")) {
+//    EnrollUserBoundaryFunction(INNER_X1, InnerX1);
+//  }
+//  if(mesh_bcs[OUTER_X1] == GetBoundaryFlag("user")) {
+//    EnrollUserBoundaryFunction(OUTER_X1, OuterX1);
+//  }
+//  if(mesh_bcs[INNER_X2] == GetBoundaryFlag("user")) {
+//    EnrollUserBoundaryFunction(INNER_X2, InnerX2);
+//  }
+//  if(mesh_bcs[OUTER_X2] == GetBoundaryFlag("user")) {
+//    EnrollUserBoundaryFunction(OUTER_X2, OuterX2);
+//  }
+//  if(mesh_bcs[INNER_X3] == GetBoundaryFlag("user")) {
+//    EnrollUserBoundaryFunction(INNER_X3, InnerX3);
+//  }
+//  if(mesh_bcs[OUTER_X3] == GetBoundaryFlag("user")) {
+//    EnrollUserBoundaryFunction(OUTER_X3, OuterX3);
+//  }
 }
 
 void MeshBlock::ProblemGenerator(ParameterInput *pin)
 {
-  Real four_pi_G = pin->GetReal("problem","four_pi_G");
-  int npoly = pin->GetInteger("problem", "npoly")
   Real gamma = peos->GetGamma();
-  if (gamma != 1 + 1.0/Real(n)) {
+  Real gm1 = gamma - 1.0;
+  if (gamma != 2) {
     std::stringstream msg;
     msg << "### FATAL ERROR in polytrope.cpp ProblemGenerator" << std::endl
         << "invalid gamma " << std::endl;
     throw std::runtime_error(msg.str().c_str());
   }
-  //TODO
-  Real gm1 = gamma - 1.0;
+  Real four_pi_G = pin->GetReal("problem", "four_pi_G");
+  Real rhoc  = pin->GetReal("problem","rhoc");
+  Real damb  = pin->GetReal("problem","damb");
+  Real pamb  = pin->GetReal("problem","pamb");
+  Real rsurf = pin->GetReal("problem","rsurf");
+  Real Pc = four_pi_G*SQR(rhoc*rsurf)/SQR(PI)/2;
+  Real xi,x,y,z,den,prs;
+  Real vx=0, vy=0, vz=0;
   for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
       for (int i=is; i<=ie; ++i) {
-        phydro->u(IDN,k,j,i) = 1.0;
-        phydro->u(IM1,k,j,i) = 0;
-        phydro->u(IM2,k,j,i) = 0;
-        phydro->u(IM3,k,j,i) = 0;
-        phydro->u(IEN,k,j,i) = 1.0 / gm1;
+        x = pcoord->x1v(i);
+        y = pcoord->x2v(j);
+        z = pcoord->x3v(k);
+        xi = PI*sqrt(SQR(x)+SQR(y)+SQR(z))/rsurf;
+        if (xi < PI) {
+          den = rhoc*sin(xi)/xi;
+          prs = Pc*SQR(sin(xi)/xi);
+        }
+        else {
+          den = damb;
+          prs = pamb;
+        }
+        phydro->u(IDN,k,j,i) = den;
+        phydro->u(IM1,k,j,i) = phydro->u(IDN,k,j,i)*vx;
+        phydro->u(IM2,k,j,i) = phydro->u(IDN,k,j,i)*vy;
+        phydro->u(IM3,k,j,i) = phydro->u(IDN,k,j,i)*vz;
+        phydro->u(IEN,k,j,i) = 0.5*phydro->u(IDN,k,j,i)*(SQR(vx)+SQR(vy)+SQR(vz))
+          + prs/gm1;
       }
     }
   }
   return;
-}
-
-void InnerX1(MeshBlock *pmb,Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
-                 Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh)
-{
-  Real gmma1 = 0.001;
-  for (int k=ks; k<=ke; ++k) {
-    for (int j=js; j<=je; ++j) {
-      for (int i=1; i<=ngh; ++i) {
-        prim(IDN,k,j,is-i) = 1.0;
-        prim(IM1,k,j,is-i) = 0;
-        prim(IM2,k,j,is-i) = 0;
-        prim(IM3,k,j,is-i) = 0;
-        prim(IEN,k,j,is-i) = 1.0;
-      }
-    }
-  }
-}
-void OuterX1(MeshBlock *pmb,Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
-                 Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh)
-{
-  Real gmma1 = 0.001;
-  for (int k=ks; k<=ke; ++k) {
-    for (int j=js; j<=je; ++j) {
-      for (int i=1; i<=ngh; ++i) {
-        prim(IDN,k,j,ie+i) = 1.0;
-        prim(IM1,k,j,ie+i) = 0;
-        prim(IM2,k,j,ie+i) = 0;
-        prim(IM3,k,j,ie+i) = 0;
-        prim(IEN,k,j,ie+i) = 1.0;
-      }
-    }
-  }
-}
-void InnerX2(MeshBlock *pmb,Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
-                 Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh)
-{
-  Real gmma1 = 0.001;
-  for (int k=ks; k<=ke; ++k) {
-    for (int j=1; j<=ngh; ++j) {
-      for (int i=is; i<=ie; ++i) {
-        prim(IDN,k,js-j,i) = 1.0;
-        prim(IM1,k,js-j,i) = 0;
-        prim(IM2,k,js-j,i) = 0;
-        prim(IM3,k,js-j,i) = 0;
-        prim(IEN,k,js-j,i) = 1.0;
-      }
-    }
-  }
-}
-void OuterX2(MeshBlock *pmb,Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
-                 Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh)
-{
-  Real gmma1 = 0.001;
-  for (int k=ks; k<=ke; ++k) {
-    for (int j=1; j<=ngh; ++j) {
-      for (int i=is; i<=ie; ++i) {
-        prim(IDN,k,je+j,i) = 1.0;
-        prim(IM1,k,je+j,i) = 0;
-        prim(IM2,k,je+j,i) = 0;
-        prim(IM3,k,je+j,i) = 0;
-        prim(IEN,k,je+j,i) = 1.0;
-      }
-    }
-  }
-}
-void InnerX3(MeshBlock *pmb,Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
-                 Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh)
-{
-  Real gmma1 = 0.001;
-  for (int k=1; k<=ngh; ++k) {
-    for (int j=js; j<=je; ++j) {
-      for (int i=is; i<=ie; ++i) {
-        prim(IDN,ks-k,j,i) = 1.0;
-        prim(IM1,ks-k,j,i) = 0;
-        prim(IM2,ks-k,j,i) = 0;
-        prim(IM3,ks-k,j,i) = 0;
-        prim(IEN,ks-k,j,i) = 1.0;
-      }
-    }
-  }
-}
-void OuterX3(MeshBlock *pmb,Coordinates *pco, AthenaArray<Real> &prim, FaceField &b,
-                 Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh)
-{
-  Real gmma1 = 0.001;
-  for (int k=1; k<=ngh; ++k) {
-    for (int j=js; j<=je; ++j) {
-      for (int i=is; i<=ie; ++i) {
-        prim(IDN,ke+k,j,i) = 1.0;
-        prim(IM1,ke+k,j,i) = 0;
-        prim(IM2,ke+k,j,i) = 0;
-        prim(IM3,ke+k,j,i) = 0;
-        prim(IEN,ke+k,j,i) = 1.0;
-      }
-    }
-  }
 }
