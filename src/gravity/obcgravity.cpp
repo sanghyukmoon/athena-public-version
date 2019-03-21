@@ -1502,6 +1502,12 @@ void OBCGravityCar::CalcBndCharge()
     int jshift=0, kshift=0;
     if (bndry_dcmps[STH][CBLOCK].js==0) jshift=ngh_;
     if (bndry_dcmps[STH][CBLOCK].ks==0) kshift=ngh_;
+    for (int k=0;k<bndry_dcmps[STH][CBLOCK].nx3;++k) {
+      for (int j=0;j<bndry_dcmps[STH][CBLOCK].nx2;++j) {
+        int idx2 = j + bndry_dcmps[STH][CBLOCK].nx2*k;
+        sigma[STH][idx2] = 0;
+      }
+    }
     for (int k=0;k<dcmps[CXB].nx3;++k) {
       for (int j=0;j<dcmps[CXB].nx2;++j) {
         int idx2 = (j+jshift) + bndry_dcmps[STH][CBLOCK].nx2*(k+kshift);
@@ -1509,23 +1515,17 @@ void OBCGravityCar::CalcBndCharge()
         sigma[STH][idx2] = out_[idx]*normfac1;
       }
     }
-    for (int k=0;k<kshift;++k) {
-      for (int j=0;j<bndry_dcmps[STH][CBLOCK].nx2;++j) {
-        int idx2 = j + bndry_dcmps[STH][CBLOCK].nx2*k;
-        sigma[STH][idx2] = 0;
-      }
-    }
-    for (int j=0;j<jshift;++j) {
-      for (int k=0;k<bndry_dcmps[STH][CBLOCK].nx3;++k) {
-        int idx2 = j + bndry_dcmps[STH][CBLOCK].nx2*k;
-        sigma[STH][idx2] = 0;
-      }
-    }
   }
   if (gie == Nx1-1) {
     int jshift=0, kshift=0;
     if (bndry_dcmps[NTH][CBLOCK].js==0) jshift=ngh_;
     if (bndry_dcmps[NTH][CBLOCK].ks==0) kshift=ngh_;
+    for (int k=0;k<bndry_dcmps[NTH][CBLOCK].nx3;++k) {
+      for (int j=0;j<bndry_dcmps[NTH][CBLOCK].nx2;++j) {
+        int idx2 = j + bndry_dcmps[NTH][CBLOCK].nx2*k;
+        sigma[NTH][idx2] = 0;
+      }
+    }
     for (int k=0;k<dcmps[CXB].nx3;++k) {
       for (int j=0;j<dcmps[CXB].nx2;++j) {
         int idx2 = (j+jshift) + bndry_dcmps[NTH][CBLOCK].nx2*(k+kshift);
@@ -1533,23 +1533,17 @@ void OBCGravityCar::CalcBndCharge()
         sigma[NTH][idx2] = out_[idx]*normfac1;
       }
     }
-    for (int k=0;k<kshift;++k) {
-      for (int j=0;j<bndry_dcmps[NTH][CBLOCK].nx2;++j) {
-        int idx2 = j + bndry_dcmps[NTH][CBLOCK].nx2*k;
-        sigma[NTH][idx2] = 0;
-      }
-    }
-    for (int j=0;j<jshift;++j) {
-      for (int k=0;k<bndry_dcmps[NTH][CBLOCK].nx3;++k) {
-        int idx2 = j + bndry_dcmps[NTH][CBLOCK].nx2*k;
-        sigma[NTH][idx2] = 0;
-      }
-    }
   }
   if (gjs == 0) {
     int ishift=0, kshift=0;
     if (bndry_dcmps[WST][CBLOCK].is==0) ishift=ngh_;
     if (bndry_dcmps[WST][CBLOCK].ks==0) kshift=ngh_;
+    for (int k=0;k<bndry_dcmps[WST][CBLOCK].nx3;++k) {
+      for (int i=0;i<bndry_dcmps[WST][CBLOCK].nx1;++i) {
+        int idx2 = i + bndry_dcmps[WST][CBLOCK].nx1*k;
+        sigma[WST][idx2] = 0;
+      }
+    }
     for (int k=0;k<dcmps[CXB].nx3;++k) {
       for (int i=0;i<dcmps[CXB].nx1;++i) {
         int idx2 = (i+ishift) + bndry_dcmps[WST][CBLOCK].nx1*(k+kshift);
@@ -1557,23 +1551,17 @@ void OBCGravityCar::CalcBndCharge()
         sigma[WST][idx2] = out_[idx]*normfac2;
       }
     }
-    for (int k=0;k<kshift;++k) {
-      for (int i=0;i<bndry_dcmps[WST][CBLOCK].nx1;++i) {
-        int idx2 = i + bndry_dcmps[WST][CBLOCK].nx1*k;
-        sigma[WST][idx2] = 0;
-      }
-    }
-    for (int i=0;i<ishift;++i) {
-      for (int k=0;k<bndry_dcmps[WST][CBLOCK].nx3;++k) {
-        int idx2 = i + bndry_dcmps[WST][CBLOCK].nx1*k;
-        sigma[WST][idx2] = 0;
-      }
-    }
   }
   if (gje == Nx2-1) {
     int ishift=0, kshift=0;
     if (bndry_dcmps[EST][CBLOCK].is==0) ishift=ngh_;
     if (bndry_dcmps[EST][CBLOCK].ks==0) kshift=ngh_;
+    for (int k=0;k<bndry_dcmps[EST][CBLOCK].nx3;++k) {
+      for (int i=0;i<bndry_dcmps[EST][CBLOCK].nx1;++i) {
+        int idx2 = i + bndry_dcmps[EST][CBLOCK].nx1*k;
+        sigma[EST][idx2] = 0;
+      }
+    }
     for (int k=0;k<dcmps[CXB].nx3;++k) {
       for (int i=0;i<dcmps[CXB].nx1;++i) {
         int idx2 = (i+ishift) + bndry_dcmps[EST][CBLOCK].nx1*(k+kshift);
@@ -1581,23 +1569,17 @@ void OBCGravityCar::CalcBndCharge()
         sigma[EST][idx2] = out_[idx]*normfac2;
       }
     }
-    for (int k=0;k<kshift;++k) {
-      for (int i=0;i<bndry_dcmps[EST][CBLOCK].nx1;++i) {
-        int idx2 = i + bndry_dcmps[EST][CBLOCK].nx1*k;
-        sigma[EST][idx2] = 0;
-      }
-    }
-    for (int i=0;i<ishift;++i) {
-      for (int k=0;k<bndry_dcmps[EST][CBLOCK].nx3;++k) {
-        int idx2 = i + bndry_dcmps[EST][CBLOCK].nx1*k;
-        sigma[EST][idx2] = 0;
-      }
-    }
   }
   if (gks == 0) {
     int ishift=0, jshift=0;
     if (bndry_dcmps[CBOT][CBLOCK].is==0) ishift=ngh_;
     if (bndry_dcmps[CBOT][CBLOCK].js==0) jshift=ngh_;
+    for (int j=0;j<bndry_dcmps[CBOT][CBLOCK].nx2;++j) {
+      for (int i=0;i<bndry_dcmps[CBOT][CBLOCK].nx1;++i) {
+        int idx2 = i + bndry_dcmps[CBOT][CBLOCK].nx1*j;
+        sigma[CBOT][idx2] = 0;
+      }
+    }
     for (int j=0;j<dcmps[CXB].nx2;++j) {
       for (int i=0;i<dcmps[CXB].nx1;++i) {
         int idx2 = (i+ishift) + bndry_dcmps[CBOT][CBLOCK].nx1*(j+jshift);
@@ -1605,40 +1587,22 @@ void OBCGravityCar::CalcBndCharge()
         sigma[CBOT][idx2] = out_[idx]*normfac3;
       }
     }
-    for (int j=0;j<jshift;++j) {
-      for (int i=0;i<bndry_dcmps[CBOT][CBLOCK].nx1;++i) {
-        int idx2 = i + bndry_dcmps[CBOT][CBLOCK].nx1*j;
-        sigma[CBOT][idx2] = 0;
-      }
-    }
-    for (int i=0;i<ishift;++i) {
-      for (int j=0;j<bndry_dcmps[CBOT][CBLOCK].nx2;++j) {
-        int idx2 = i + bndry_dcmps[CBOT][CBLOCK].nx1*j;
-        sigma[CBOT][idx2] = 0;
-      }
-    }
   }
   if (gke == Nx3-1) {
     int ishift=0, jshift=0;
     if (bndry_dcmps[CTOP][CBLOCK].is==0) ishift=ngh_;
     if (bndry_dcmps[CTOP][CBLOCK].js==0) jshift=ngh_;
-    for (int j=0;j<dcmps[CXB].nx2;++j) {
-      for (int i=0;i<dcmps[CXB].nx1;++i) {
-        int idx2 = (i+ishift) + bndry_dcmps[CTOP][CBLOCK].nx1*(j+jshift);
-        int idx = i + dcmps[CXB].nx1*(j + dcmps[CXB].nx2*(dcmps[CXB].nx3-1));
-        sigma[CTOP][idx2] = out_[idx]*normfac3;
-      }
-    }
-    for (int j=0;j<jshift;++j) {
+    for (int j=0;j<bndry_dcmps[CTOP][CBLOCK].nx2;++j) {
       for (int i=0;i<bndry_dcmps[CTOP][CBLOCK].nx1;++i) {
         int idx2 = i + bndry_dcmps[CTOP][CBLOCK].nx1*j;
         sigma[CTOP][idx2] = 0;
       }
     }
-    for (int i=0;i<ishift;++i) {
-      for (int j=0;j<bndry_dcmps[CTOP][CBLOCK].nx2;++j) {
-        int idx2 = i + bndry_dcmps[CTOP][CBLOCK].nx1*j;
-        sigma[CTOP][idx2] = 0;
+    for (int j=0;j<dcmps[CXB].nx2;++j) {
+      for (int i=0;i<dcmps[CXB].nx1;++i) {
+        int idx2 = (i+ishift) + bndry_dcmps[CTOP][CBLOCK].nx1*(j+jshift);
+        int idx = i + dcmps[CXB].nx1*(j + dcmps[CXB].nx2*(dcmps[CXB].nx3-1));
+        sigma[CTOP][idx2] = out_[idx]*normfac3;
       }
     }
   }
