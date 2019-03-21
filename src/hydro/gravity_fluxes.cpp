@@ -21,7 +21,6 @@ void Hydro::AddGravityFlux(void) {
   // Gravity flux is not implemented in cylindrical coordinates.
   // Instead, gravity is added as source term. See srcterms/self_gravity.cpp
   if (COORDINATE_SYSTEM == "cylindrical") return;
-  if (COORDINATE_SYSTEM == "cartesian") return;
   MeshBlock *pmb=pmy_block;
   Coordinates *pco=pmb->pcoord;
   Real four_pi_G=pmb->pgrav->four_pi_G, grav_mean_rho=pmb->pgrav->grav_mean_rho;
