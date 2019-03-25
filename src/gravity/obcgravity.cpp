@@ -109,6 +109,10 @@ void OBCGravityDriver::Solve(int stage)
     pmy_og_car->SolveZeroBC();
     pmy_og_car->RetrieveResult(pmb->pgrav->phi);
     gtlist_->DoTaskListOneStage(pmy_mesh_, stage);
+//    if (Globals::my_rank==0) {
+//      std::cout << pmb->pgrav->phi(pmb->ks+63,pmb->js+63,pmb->is) << std::endl;
+//      std::cout << pmb->pgrav->phi(pmb->ks+64,pmb->js+63,pmb->is) << std::endl;
+//    }
   }
   else if (COORDINATE_SYSTEM=="cylindrical") {
     MeshBlock *pmb=pmy_mesh_->pblock;
@@ -2012,50 +2016,68 @@ void OBCGravityCar::RetrieveResult(AthenaArray<Real> &dst)
     }
   }
   if (gis == 0) {
-    for (int k=0;k<nx3;++k) {
-      for (int j=0;j<nx2;++j) {
-        int idx2 = j + nx2*k;
-        dst(k+ks,j+js,is-1) = -sigma[STH][idx2];
+    int jshift=0, kshift=0;
+    if (bndry_dcmps[STH][CBLOCK].js==0) jshift=ngh_;
+    if (bndry_dcmps[STH][CBLOCK].ks==0) kshift=ngh_;
+    for (int k=0;k<bndry_dcmps[STH][CBLOCK].nx3;++k) {
+      for (int j=0;j<bndry_dcmps[STH][CBLOCK].nx2;++j) {
+        int idx2 = j + bndry_dcmps[STH][CBLOCK].nx2*k;
+        dst(k+ks-kshift,j+js-jshift,is-1) = -sigma[STH][idx2];
       }
     }
   }
   if (gie == Nx1-1) {
-    for (int k=0;k<nx3;++k) {
-      for (int j=0;j<nx2;++j) {
-        int idx2 = j + nx2*k;
-        dst(k+ks,j+js,ie+1) = -sigma[NTH][idx2];
+    int jshift=0, kshift=0;
+    if (bndry_dcmps[NTH][CBLOCK].js==0) jshift=ngh_;
+    if (bndry_dcmps[NTH][CBLOCK].ks==0) kshift=ngh_;
+    for (int k=0;k<bndry_dcmps[NTH][CBLOCK].nx3;++k) {
+      for (int j=0;j<bndry_dcmps[NTH][CBLOCK].nx2;++j) {
+        int idx2 = j + bndry_dcmps[NTH][CBLOCK].nx2*k;
+        dst(k+ks-kshift,j+js-jshift,ie+1) = -sigma[NTH][idx2];
       }
     }
   }
   if (gjs == 0) {
-    for (int k=0;k<nx3;++k) {
-      for (int i=0;i<nx1;++i) {
-        int idx2 = i + nx1*k;
-        dst(k+ks,js-1,i+is) = -sigma[WST][idx2];
+    int ishift=0, kshift=0;
+    if (bndry_dcmps[WST][CBLOCK].is==0) ishift=ngh_;
+    if (bndry_dcmps[WST][CBLOCK].ks==0) kshift=ngh_;
+    for (int k=0;k<bndry_dcmps[WST][CBLOCK].nx3;++k) {
+      for (int i=0;i<bndry_dcmps[WST][CBLOCK].nx1;++i) {
+        int idx2 = i + bndry_dcmps[WST][CBLOCK].nx1*k;
+        dst(k+ks-kshift,js-1,i+is-ishift) = -sigma[WST][idx2];
       }
     }
   }
   if (gje == Nx2-1) {
-    for (int k=0;k<nx3;++k) {
-      for (int i=0;i<nx1;++i) {
-        int idx2 = i + nx1*k;
-        dst(k+ks,je+1,i+is) = -sigma[EST][idx2];
-      }
-    }
-  }
-  if (gke == Nx3-1) {
-    for (int j=0;j<nx2;++j) {
-      for (int i=0;i<nx1;++i) {
-        int idx2 = i + nx1*j;
-        dst(ke+1,j+js,i+is) = -sigma[CTOP][idx2];
+    int ishift=0, kshift=0;
+    if (bndry_dcmps[EST][CBLOCK].is==0) ishift=ngh_;
+    if (bndry_dcmps[EST][CBLOCK].ks==0) kshift=ngh_;
+    for (int k=0;k<bndry_dcmps[EST][CBLOCK].nx3;++k) {
+      for (int i=0;i<bndry_dcmps[EST][CBLOCK].nx1;++i) {
+        int idx2 = i + bndry_dcmps[EST][CBLOCK].nx1*k;
+        dst(k+ks-kshift,je+1,i+is-ishift) = -sigma[EST][idx2];
       }
     }
   }
   if (gks == 0) {
-    for (int j=0;j<nx2;++j) {
-      for (int i=0;i<nx1;++i) {
-        int idx2 = i + nx1*j;
-        dst(ks-1,j+js,i+is) = -sigma[CBOT][idx2];
+    int ishift=0, jshift=0;
+    if (bndry_dcmps[CBOT][CBLOCK].is==0) ishift=ngh_;
+    if (bndry_dcmps[CBOT][CBLOCK].js==0) jshift=ngh_;
+    for (int j=0;j<bndry_dcmps[CBOT][CBLOCK].nx2;++j) {
+      for (int i=0;i<bndry_dcmps[CBOT][CBLOCK].nx1;++i) {
+        int idx2 = i + bndry_dcmps[CBOT][CBLOCK].nx1*j;
+        dst(ks-1,j+js-jshift,i+is-ishift) = -sigma[CBOT][idx2];
+      }
+    }
+  }
+  if (gke == Nx3-1) {
+    int ishift=0, jshift=0;
+    if (bndry_dcmps[CTOP][CBLOCK].is==0) ishift=ngh_;
+    if (bndry_dcmps[CTOP][CBLOCK].js==0) jshift=ngh_;
+    for (int j=0;j<bndry_dcmps[CTOP][CBLOCK].nx2;++j) {
+      for (int i=0;i<bndry_dcmps[CTOP][CBLOCK].nx1;++i) {
+        int idx2 = i + bndry_dcmps[CTOP][CBLOCK].nx1*j;
+        dst(ke+1,j+js-jshift,i+is-ishift) = -sigma[CTOP][idx2];
       }
     }
   }
