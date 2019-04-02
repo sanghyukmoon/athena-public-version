@@ -109,9 +109,21 @@ void OBCGravityDriver::Solve(int stage)
     pmy_og_car->SolveZeroBC();
     pmy_og_car->RetrieveResult(pmb->pgrav->phi);
     gtlist_->DoTaskListOneStage(pmy_mesh_, stage);
-//    if (Globals::my_rank==0) {
-//      std::cout << pmb->pgrav->phi(pmb->ks+63,pmb->js+63,pmb->is) << std::endl;
-//      std::cout << pmb->pgrav->phi(pmb->ks+64,pmb->js+63,pmb->is) << std::endl;
+//    std::cout << std::scientific << std::setprecision(16);
+//    if (Globals::my_rank==1) {
+//      std::cout << "ghost cell at proc 0 = " << pmb->pgrav->phi(pmb->ks+32,pmb->js+63,pmb->is-1) << std::endl;
+//    }
+//    if (Globals::my_rank==3) {
+//      std::cout << "first active cell at proc 1 = " << pmb->pgrav->phi(pmb->ks,pmb->js+63,pmb->is-1) << std::endl;
+//    }
+//    if (pmb->loc.lx1==0) {
+//      for (int k=pmb->ks-1;k<=pmb->ke+1;++k) {
+//        for (int j=pmb->js-1;j<=pmb->je+1;++j) {
+//          for (int i=pmb->ie;i>=pmb->is;--i) {
+//            pmb->pgrav->phi(k,j,i) = pmb->pgrav->phi(k,j,i-1);
+//          }
+//        }
+//      }
 //    }
   }
   else if (COORDINATE_SYSTEM=="cylindrical") {
