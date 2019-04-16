@@ -1631,51 +1631,63 @@ void OBCGravityCar::CalcBndPot()
     bndry_dcmps[STH][FFT_SECOND].nx2, bndry_dcmps[STH][FFT_SECOND].nx3, STH);
   for (int p1=C;p1<=S;++p1) {
     for (int p2=C;p2<=S;++p2) {
-      MPI_Ibcast(sigma_fft[STH][p1][p2], dcmps[PB].nx2*dcmps[PB].nx3,
-       MPI_DOUBLE, 0, x1comm, &req[STH]);
+//      MPI_Ibcast(sigma_fft[STH][p1][p2], dcmps[PB].nx2*dcmps[PB].nx3,
+//       MPI_DOUBLE, 0, x1comm, &req[STH]);
+      MPI_Bcast(sigma_fft[STH][p1][p2], dcmps[PB].nx2*dcmps[PB].nx3,
+       MPI_DOUBLE, 0, x1comm);
     }
   }
   BndFFTForward(bndry_dcmps[NTH][FFT_FIRST].nx3, bndry_dcmps[NTH][FFT_FIRST].nx2,
     bndry_dcmps[NTH][FFT_SECOND].nx2, bndry_dcmps[NTH][FFT_SECOND].nx3, NTH);
   for (int p1=C;p1<=S;++p1) {
     for (int p2=C;p2<=S;++p2) {
-      MPI_Ibcast(sigma_fft[NTH][p1][p2], dcmps[PB].nx2*dcmps[PB].nx3,
-       MPI_DOUBLE, x1comm_size-1, x1comm, &req[NTH]);
+//      MPI_Ibcast(sigma_fft[NTH][p1][p2], dcmps[PB].nx2*dcmps[PB].nx3,
+//       MPI_DOUBLE, x1comm_size-1, x1comm, &req[NTH]);
+      MPI_Bcast(sigma_fft[NTH][p1][p2], dcmps[PB].nx2*dcmps[PB].nx3,
+       MPI_DOUBLE, x1comm_size-1, x1comm);
     }
   }
   BndFFTForward(bndry_dcmps[WST][FFT_FIRST].nx3, bndry_dcmps[WST][FFT_FIRST].nx1,
     bndry_dcmps[WST][FFT_SECOND].nx1, bndry_dcmps[WST][FFT_SECOND].nx3, WST);
   for (int p1=C;p1<=S;++p1) {
     for (int p2=C;p2<=S;++p2) {
-      MPI_Ibcast(sigma_fft[WST][p1][p2], dcmps[PB].nx1*dcmps[PB].nx3,
-       MPI_DOUBLE, 0, x2comm, &req[WST]);
+//      MPI_Ibcast(sigma_fft[WST][p1][p2], dcmps[PB].nx1*dcmps[PB].nx3,
+//       MPI_DOUBLE, 0, x2comm, &req[WST]);
+      MPI_Bcast(sigma_fft[WST][p1][p2], dcmps[PB].nx1*dcmps[PB].nx3,
+       MPI_DOUBLE, 0, x2comm);
     }
   }
   BndFFTForward(bndry_dcmps[EST][FFT_FIRST].nx3, bndry_dcmps[EST][FFT_FIRST].nx1,
     bndry_dcmps[EST][FFT_SECOND].nx1, bndry_dcmps[EST][FFT_SECOND].nx3, EST);
   for (int p1=C;p1<=S;++p1) {
     for (int p2=C;p2<=S;++p2) {
-      MPI_Ibcast(sigma_fft[EST][p1][p2], dcmps[PB].nx1*dcmps[PB].nx3,
-       MPI_DOUBLE, x2comm_size-1, x2comm, &req[EST]);
+//      MPI_Ibcast(sigma_fft[EST][p1][p2], dcmps[PB].nx1*dcmps[PB].nx3,
+//       MPI_DOUBLE, x2comm_size-1, x2comm, &req[EST]);
+      MPI_Bcast(sigma_fft[EST][p1][p2], dcmps[PB].nx1*dcmps[PB].nx3,
+       MPI_DOUBLE, x2comm_size-1, x2comm);
     }
   }
   BndFFTForward(bndry_dcmps[CBOT][FFT_FIRST].nx2, bndry_dcmps[CBOT][FFT_FIRST].nx1,
     bndry_dcmps[CBOT][FFT_SECOND].nx1, bndry_dcmps[CBOT][FFT_SECOND].nx2, CBOT);
   for (int p1=C;p1<=S;++p1) {
     for (int p2=C;p2<=S;++p2) {
-      MPI_Ibcast(sigma_fft[CBOT][p1][p2], dcmps[PB].nx1*dcmps[PB].nx2,
-       MPI_DOUBLE, 0, x3comm, &req[CBOT]);
+//      MPI_Ibcast(sigma_fft[CBOT][p1][p2], dcmps[PB].nx1*dcmps[PB].nx2,
+//       MPI_DOUBLE, 0, x3comm, &req[CBOT]);
+      MPI_Bcast(sigma_fft[CBOT][p1][p2], dcmps[PB].nx1*dcmps[PB].nx2,
+       MPI_DOUBLE, 0, x3comm);
     }
   }
   BndFFTForward(bndry_dcmps[CTOP][FFT_FIRST].nx2, bndry_dcmps[CTOP][FFT_FIRST].nx1,
     bndry_dcmps[CTOP][FFT_SECOND].nx1, bndry_dcmps[CTOP][FFT_SECOND].nx2, CTOP);
   for (int p1=C;p1<=S;++p1) {
     for (int p2=C;p2<=S;++p2) {
-      MPI_Ibcast(sigma_fft[CTOP][p1][p2], dcmps[PB].nx1*dcmps[PB].nx2,
-       MPI_DOUBLE, x3comm_size-1, x3comm, &req[CTOP]);
+//      MPI_Ibcast(sigma_fft[CTOP][p1][p2], dcmps[PB].nx1*dcmps[PB].nx2,
+//       MPI_DOUBLE, x3comm_size-1, x3comm, &req[CTOP]);
+      MPI_Bcast(sigma_fft[CTOP][p1][p2], dcmps[PB].nx1*dcmps[PB].nx2,
+       MPI_DOUBLE, x3comm_size-1, x3comm);
     }
   }
-  MPI_Waitall(6, req, MPI_STATUSES_IGNORE);
+//  MPI_Waitall(6, req, MPI_STATUSES_IGNORE);
 
   int sgn1, sgn2, sgn3;
   for (int k=0;k<dcmps[PB].nx3;++k) {
@@ -1741,21 +1753,33 @@ void OBCGravityCar::CalcBndPot()
   for (int p1=C;p1<=S;++p1) {
     for (int p2=C;p2<=S;++p2) {
       if (x1rank == 0) 
-        MPI_Ireduce(MPI_IN_PLACE, sigma_fft[STH][p1][p2],
+//        MPI_Ireduce(MPI_IN_PLACE, sigma_fft[STH][p1][p2],
+//         dcmps[PB].nx2*dcmps[PB].nx3, MPI_DOUBLE, MPI_SUM,
+//         0, x1comm, &req[STH]);
+        MPI_Reduce(MPI_IN_PLACE, sigma_fft[STH][p1][p2],
          dcmps[PB].nx2*dcmps[PB].nx3, MPI_DOUBLE, MPI_SUM,
-         0, x1comm, &req[STH]);
+         0, x1comm);
       else
-        MPI_Ireduce(sigma_fft[STH][p1][p2], sigma_fft[STH][p1][p2],
+//        MPI_Ireduce(sigma_fft[STH][p1][p2], sigma_fft[STH][p1][p2],
+//         dcmps[PB].nx2*dcmps[PB].nx3, MPI_DOUBLE, MPI_SUM,
+//         0, x1comm, &req[STH]);
+        MPI_Reduce(sigma_fft[STH][p1][p2], sigma_fft[STH][p1][p2],
          dcmps[PB].nx2*dcmps[PB].nx3, MPI_DOUBLE, MPI_SUM,
-         0, x1comm, &req[STH]);
+         0, x1comm);
       if (x1rank == x1comm_size-1) 
-        MPI_Ireduce(MPI_IN_PLACE, sigma_fft[NTH][p1][p2],
+//        MPI_Ireduce(MPI_IN_PLACE, sigma_fft[NTH][p1][p2],
+//         dcmps[PB].nx2*dcmps[PB].nx3, MPI_DOUBLE, MPI_SUM,
+//         x1comm_size-1, x1comm, &req[NTH]);
+        MPI_Reduce(MPI_IN_PLACE, sigma_fft[NTH][p1][p2],
          dcmps[PB].nx2*dcmps[PB].nx3, MPI_DOUBLE, MPI_SUM,
-         x1comm_size-1, x1comm, &req[NTH]);
+         x1comm_size-1, x1comm);
       else
-        MPI_Ireduce(sigma_fft[NTH][p1][p2], sigma_fft[NTH][p1][p2],
+//        MPI_Ireduce(sigma_fft[NTH][p1][p2], sigma_fft[NTH][p1][p2],
+//         dcmps[PB].nx2*dcmps[PB].nx3, MPI_DOUBLE, MPI_SUM,
+//         x1comm_size-1, x1comm, &req[NTH]);
+        MPI_Reduce(sigma_fft[NTH][p1][p2], sigma_fft[NTH][p1][p2],
          dcmps[PB].nx2*dcmps[PB].nx3, MPI_DOUBLE, MPI_SUM,
-         x1comm_size-1, x1comm, &req[NTH]);
+         x1comm_size-1, x1comm);
     }
   }
   // Perform inverse transform to obtain 2D FFTs of WST/EST boundary potential
@@ -1788,21 +1812,33 @@ void OBCGravityCar::CalcBndPot()
   for (int p1=C;p1<=S;++p1) {
     for (int p2=C;p2<=S;++p2) {
       if (x2rank == 0) 
-        MPI_Ireduce(MPI_IN_PLACE, sigma_fft[WST][p1][p2],
+//        MPI_Ireduce(MPI_IN_PLACE, sigma_fft[WST][p1][p2],
+//         dcmps[PB].nx1*dcmps[PB].nx3, MPI_DOUBLE, MPI_SUM,
+//         0, x2comm, &req[WST]);
+        MPI_Reduce(MPI_IN_PLACE, sigma_fft[WST][p1][p2],
          dcmps[PB].nx1*dcmps[PB].nx3, MPI_DOUBLE, MPI_SUM,
-         0, x2comm, &req[WST]);
+         0, x2comm);
       else
-        MPI_Ireduce(sigma_fft[WST][p1][p2], sigma_fft[WST][p1][p2],
+//        MPI_Ireduce(sigma_fft[WST][p1][p2], sigma_fft[WST][p1][p2],
+//         dcmps[PB].nx1*dcmps[PB].nx3, MPI_DOUBLE, MPI_SUM,
+//         0, x2comm, &req[WST]);
+        MPI_Reduce(sigma_fft[WST][p1][p2], sigma_fft[WST][p1][p2],
          dcmps[PB].nx1*dcmps[PB].nx3, MPI_DOUBLE, MPI_SUM,
-         0, x2comm, &req[WST]);
+         0, x2comm);
       if (x2rank == x2comm_size-1) 
-        MPI_Ireduce(MPI_IN_PLACE, sigma_fft[EST][p1][p2],
+//        MPI_Ireduce(MPI_IN_PLACE, sigma_fft[EST][p1][p2],
+//         dcmps[PB].nx1*dcmps[PB].nx3, MPI_DOUBLE, MPI_SUM,
+//         x2comm_size-1, x2comm, &req[EST]);
+        MPI_Reduce(MPI_IN_PLACE, sigma_fft[EST][p1][p2],
          dcmps[PB].nx1*dcmps[PB].nx3, MPI_DOUBLE, MPI_SUM,
-         x2comm_size-1, x2comm, &req[EST]);
+         x2comm_size-1, x2comm);
       else
-        MPI_Ireduce(sigma_fft[EST][p1][p2], sigma_fft[EST][p1][p2],
+//        MPI_Ireduce(sigma_fft[EST][p1][p2], sigma_fft[EST][p1][p2],
+//         dcmps[PB].nx1*dcmps[PB].nx3, MPI_DOUBLE, MPI_SUM,
+//         x2comm_size-1, x2comm, &req[EST]);
+        MPI_Reduce(sigma_fft[EST][p1][p2], sigma_fft[EST][p1][p2],
          dcmps[PB].nx1*dcmps[PB].nx3, MPI_DOUBLE, MPI_SUM,
-         x2comm_size-1, x2comm, &req[EST]);
+         x2comm_size-1, x2comm);
     }
   }
 
@@ -1836,39 +1872,51 @@ void OBCGravityCar::CalcBndPot()
   for (int p1=C;p1<=S;++p1) {
     for (int p2=C;p2<=S;++p2) {
       if (x3rank == 0) 
-        MPI_Ireduce(MPI_IN_PLACE, sigma_fft[CBOT][p1][p2],
+//        MPI_Ireduce(MPI_IN_PLACE, sigma_fft[CBOT][p1][p2],
+//         dcmps[PB].nx1*dcmps[PB].nx2, MPI_DOUBLE, MPI_SUM,
+//         0, x3comm, &req[CBOT]);
+        MPI_Reduce(MPI_IN_PLACE, sigma_fft[CBOT][p1][p2],
          dcmps[PB].nx1*dcmps[PB].nx2, MPI_DOUBLE, MPI_SUM,
-         0, x3comm, &req[CBOT]);
+         0, x3comm);
       else
-        MPI_Ireduce(sigma_fft[CBOT][p1][p2], sigma_fft[CBOT][p1][p2],
+//        MPI_Ireduce(sigma_fft[CBOT][p1][p2], sigma_fft[CBOT][p1][p2],
+//         dcmps[PB].nx1*dcmps[PB].nx2, MPI_DOUBLE, MPI_SUM,
+//         0, x3comm, &req[CBOT]);
+        MPI_Reduce(sigma_fft[CBOT][p1][p2], sigma_fft[CBOT][p1][p2],
          dcmps[PB].nx1*dcmps[PB].nx2, MPI_DOUBLE, MPI_SUM,
-         0, x3comm, &req[CBOT]);
+         0, x3comm);
       if (x3rank == x3comm_size-1) 
-        MPI_Ireduce(MPI_IN_PLACE, sigma_fft[CTOP][p1][p2],
+//        MPI_Ireduce(MPI_IN_PLACE, sigma_fft[CTOP][p1][p2],
+//         dcmps[PB].nx1*dcmps[PB].nx2, MPI_DOUBLE, MPI_SUM,
+//         x3comm_size-1, x3comm, &req[CTOP]);
+        MPI_Reduce(MPI_IN_PLACE, sigma_fft[CTOP][p1][p2],
          dcmps[PB].nx1*dcmps[PB].nx2, MPI_DOUBLE, MPI_SUM,
-         x3comm_size-1, x3comm, &req[CTOP]);
+         x3comm_size-1, x3comm);
       else
-        MPI_Ireduce(sigma_fft[CTOP][p1][p2], sigma_fft[CTOP][p1][p2],
+//        MPI_Ireduce(sigma_fft[CTOP][p1][p2], sigma_fft[CTOP][p1][p2],
+//         dcmps[PB].nx1*dcmps[PB].nx2, MPI_DOUBLE, MPI_SUM,
+//         x3comm_size-1, x3comm, &req[CTOP]);
+        MPI_Reduce(sigma_fft[CTOP][p1][p2], sigma_fft[CTOP][p1][p2],
          dcmps[PB].nx1*dcmps[PB].nx2, MPI_DOUBLE, MPI_SUM,
-         x3comm_size-1, x3comm, &req[CTOP]);
+         x3comm_size-1, x3comm);
     }
   }
-  MPI_Wait(&req[STH], MPI_STATUS_IGNORE);
+//  MPI_Wait(&req[STH], MPI_STATUS_IGNORE);
   BndFFTBackward(bndry_dcmps[STH][FFT_FIRST].nx3, bndry_dcmps[STH][FFT_FIRST].nx2, 
     bndry_dcmps[STH][FFT_SECOND].nx2, bndry_dcmps[STH][FFT_SECOND].nx3, STH);
-  MPI_Wait(&req[NTH], MPI_STATUS_IGNORE);
+//  MPI_Wait(&req[NTH], MPI_STATUS_IGNORE);
   BndFFTBackward(bndry_dcmps[NTH][FFT_FIRST].nx3, bndry_dcmps[NTH][FFT_FIRST].nx2,
     bndry_dcmps[NTH][FFT_SECOND].nx2, bndry_dcmps[NTH][FFT_SECOND].nx3, NTH);
-  MPI_Wait(&req[WST], MPI_STATUS_IGNORE);
+//  MPI_Wait(&req[WST], MPI_STATUS_IGNORE);
   BndFFTBackward(bndry_dcmps[WST][FFT_FIRST].nx3, bndry_dcmps[WST][FFT_FIRST].nx1,
     bndry_dcmps[WST][FFT_SECOND].nx1, bndry_dcmps[WST][FFT_SECOND].nx3, WST);
-  MPI_Wait(&req[EST], MPI_STATUS_IGNORE);
+//  MPI_Wait(&req[EST], MPI_STATUS_IGNORE);
   BndFFTBackward(bndry_dcmps[EST][FFT_FIRST].nx3, bndry_dcmps[EST][FFT_FIRST].nx1,
     bndry_dcmps[EST][FFT_SECOND].nx1, bndry_dcmps[EST][FFT_SECOND].nx3, EST);
-  MPI_Wait(&req[CBOT], MPI_STATUS_IGNORE);
+//  MPI_Wait(&req[CBOT], MPI_STATUS_IGNORE);
   BndFFTBackward(bndry_dcmps[CBOT][FFT_FIRST].nx2, bndry_dcmps[CBOT][FFT_FIRST].nx1,
     bndry_dcmps[CBOT][FFT_SECOND].nx1, bndry_dcmps[CBOT][FFT_SECOND].nx2, CBOT);
-  MPI_Wait(&req[CTOP], MPI_STATUS_IGNORE);
+//  MPI_Wait(&req[CTOP], MPI_STATUS_IGNORE);
   BndFFTBackward(bndry_dcmps[CTOP][FFT_FIRST].nx2, bndry_dcmps[CTOP][FFT_FIRST].nx1,
     bndry_dcmps[CTOP][FFT_SECOND].nx1, bndry_dcmps[CTOP][FFT_SECOND].nx2, CTOP);
 
