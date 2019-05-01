@@ -103,7 +103,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   AthenaArray<Real> scf_r;
   AthenaArray<Real> scf_mu;
   AthenaArray<Real> scf_phi;
-  scf_dens.NewAthenaArray(2049, 2049); // in R, z plane
+  scf_dens.NewAthenaArray(2049, 2049); // in R, cos(theta) plane
   scf_prs.NewAthenaArray(2049, 2049);
   scf_r.NewAthenaArray(2049);
   scf_mu.NewAthenaArray(2049);
