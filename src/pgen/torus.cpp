@@ -87,6 +87,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   Real four_pi_G = pin->GetReal("problem","four_pi_G");
   int mperturb = pin->GetInteger("problem","mperturb");
   Real gm1 = pin->GetReal("hydro","gamma") - 1.0;
+  // open initial condition files
   std::ifstream scf_dens_file ("scf_dens.txt"); 
   std::ifstream scf_prs_file ("scf_prs.txt"); 
   std::ifstream scf_r_file ("scf_r.txt"); 
@@ -102,11 +103,12 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   AthenaArray<Real> scf_r;
   AthenaArray<Real> scf_mu;
   AthenaArray<Real> scf_phi;
-  scf_dens.NewAthenaArray(2049, 2049);
+  scf_dens.NewAthenaArray(2049, 2049); // in R, z plane
   scf_prs.NewAthenaArray(2049, 2049);
   scf_r.NewAthenaArray(2049);
   scf_mu.NewAthenaArray(2049);
   scf_phi.NewAthenaArray(2049, 2049);
+  // read from files
   for (int i=0;i<2049;++i) {
     for (int j=0;j<2049;++j) {
       scf_dens_file >> scf_dens(i,j);
@@ -146,18 +148,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
         }
         t = (r - scf_r(il)) / (scf_r(iu) - scf_r(il));
         u = (mu - scf_mu(jl)) / (scf_mu(ju) - scf_mu(jl));
+        // bilinear interpolation
         phydro->u(IDN,k,j,i) = (1.-t)*(1.-u)*scf_dens(il,jl) + t*(1.-u)*scf_dens(iu,jl)
                               + (1.-t)*u*scf_dens(il,ju) + t*u*scf_dens(iu,ju);
-        if ((Globals::my_rank==0)&&(k==32)&&(i==is)&&(j==0)) {
-          std::cout << "i==is " << phydro->u(IDN,k,j,i) << std::endl;
-          std::cout << "il = " << il << " iu = " << iu << " jl = " << jl << " ju = " << ju << std::endl;
-        }
-        if ((Globals::my_rank==0)&&(k==32)&&(i==is-1)&&(j==0)) {
-          std::cout << "i==is-1 " << phydro->u(IDN,k,j,i) << std::endl;
-          std::cout << "il = " << il << " iu = " << iu << " jl = " << jl << " ju = " << ju << std::endl;
-          std::cout << "scf_r(il) = " << scf_r(il) << "scf_r(iu) = " << scf_r(iu) << std::endl;
-          std::cout << "scf_dens(il,jl) = " << scf_dens(il,jl) << std::endl;
-        }
         phydro->u(IM1,k,j,i) = 0.0;
         phydro->u(IM2,k,j,i) = phydro->u(IDN,k,j,i)*R*omg0;
         phydro->u(IM3,k,j,i) = 0.0;
@@ -167,47 +160,39 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
         initdens(k,j,i) = phydro->u(IDN,k,j,i);
         initvel2(k,j,i) = R*omg0;
         initprs(k,j,i) = gm1*(phydro->u(IEN,k,j,i) - 0.5*phydro->u(IDN,k,j,i)*SQR(R*omg0));
-//        if (mperturb != 0)
-//          phydro->u(IDN,k,j,i) += ((1e-3*phydro->u(IDN,k,j,i))*sin(mperturb*pcoord->x2v(j)));
-        
-//        phydro->u(IDN,k,j,i) = (1.-t)*(1.-u)*scf_dens(il,jl) + t*(1.-u)*scf_dens(iu,jl)
-//                              + (1.-t)*u*scf_dens(il,ju) + t*u*scf_dens(iu,ju);
-//        phydro->u(IM1,k,j,i) = (1.-t)*(1.-u)*scf_phi(il,jl) + t*(1.-u)*scf_phi(iu,jl)
-//                              + (1.-t)*u*scf_phi(il,ju) + t*u*scf_phi(iu,ju); // Phi
-//        phydro->u(IM2,k,j,i) = -0.5*R*R*omg0*omg0; // Psi
-//        phydro->u(IM3,k,j,i) = (1.-t)*(1.-u)*scf_prs(il,jl) + t*(1.-u)*scf_prs(iu,jl)
-//                              + (1.-t)*u*scf_prs(il,ju) + t*u*scf_prs(iu,ju);
-//        phydro->u(IM3,k,j,i) *= log(phydro->u(IDN,k,j,i))/phydro->u(IDN,k,j,i); // H
-//        phydro->u(IEN,k,j,i) = 0;
+        // add single mode perturbation
+        if (mperturb != 0)
+          phydro->u(IDN,k,j,i) += ((1e-3*phydro->u(IDN,k,j,i))*sin(mperturb*pcoord->x2v(j)));
       }
     }
   }
 
-  int N = 1024;
-  int hN = 512;
-  fftw_complex *in =  fftw_alloc_complex(hN+1);
-  fftw_plan c2r = fftw_plan_dft_c2r_1d(N, in, (double*)in, FFTW_MEASURE);
-  in[0][0] = 0;
-  in[0][1] = 0;
-  in[hN][0] = 1;
-  in[hN][1] = 0;
-  double phase;
-  for (int j=1;j<hN;++j) {
-    phase = 2*PI*(double)rand()/RAND_MAX;
-    in[j][0] = cos(phase);
-    in[j][1] = sin(phase);
-  }
-  fftw_execute(c2r);
-
-  for (int k=ks; k<=ke; ++k) {
-    for (int j=js; j<=je; ++j) {
-      for (int i=is; i<=ie; ++i) {
-        phydro->u(IDN,k,j,i) += ((1e-5*phydro->u(IDN,k,j,i))*((double*)in)[j-js]/N);
-      }
-    }
-  }
-  fftw_destroy_plan(c2r);
-  fftw_free(in);
+  // add white noise perturbation
+//  int N = 1024;
+//  int hN = 512;
+//  fftw_complex *in =  fftw_alloc_complex(hN+1);
+//  fftw_plan c2r = fftw_plan_dft_c2r_1d(N, in, (double*)in, FFTW_MEASURE);
+//  in[0][0] = 0;
+//  in[0][1] = 0;
+//  in[hN][0] = 1;
+//  in[hN][1] = 0;
+//  double phase;
+//  for (int j=1;j<hN;++j) {
+//    phase = 2*PI*(double)rand()/RAND_MAX;
+//    in[j][0] = cos(phase);
+//    in[j][1] = sin(phase);
+//  }
+//  fftw_execute(c2r);
+//
+//  for (int k=ks; k<=ke; ++k) {
+//    for (int j=js; j<=je; ++j) {
+//      for (int i=is; i<=ie; ++i) {
+//        phydro->u(IDN,k,j,i) += ((1e-5*phydro->u(IDN,k,j,i))*((double*)in)[j-js]/N);
+//      }
+//    }
+//  }
+//  fftw_destroy_plan(c2r);
+//  fftw_free(in);
 
 
   return;
