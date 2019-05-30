@@ -4,12 +4,13 @@ athena
 
 Athena++ radiation MHD code
 
-open BC self-gravity module
+Open BC self-gravity module
 ======
-
-* Includes self-gravity with vacuum (open) boundary condition via James algorithm **[(Moon, Kim, & Ostriker 2019, ApJS, 241, 24)](http://adsabs.harvard.edu/abs/2019ApJS..241...24M)**
-* Supports Cartesian and cylindrical coordinates.
-* Self gravity is added as a momentum flux in Cartesian coordinates and as a source term in cylindrical coordinates (to be updated).
+* This is an open BC self-gravity module built on the [public Athena++ code](https://github.com/PrincetonUniversity/athena-public-version)
+* Activates self-gravity with vacuum (open) boundary condition in Cartesian and cylindrical coordinates.
+* Self-gravitational acceleration is added as a momentum flux in Cartesian coordinates and as a source term in cylindrical coordinates (In the future update, self gravity will be added as a momentum flux in cylindrical coordinates as well).
+* If you use this module in a publication, please cite **[Moon, Kim, & Ostriker (2019)](http://adsabs.harvard.edu/abs/2019ApJS..241...24M)**.
 
 #### Usage
-compile with `--grav=obc -fft`
+* For using Athena++ code, consult [Athena++ Wiki](https://github.com/PrincetonUniversity/athena-public-version/wiki)
+* To activate open BC self-gravity, compile with `--grav=obc -fft`
