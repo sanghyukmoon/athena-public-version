@@ -50,6 +50,14 @@
 OBCGravityDriver::OBCGravityDriver(Mesh *pm, ParameterInput *pin)
 {
   pmy_mesh_ = pm;
+  for (int i=0;i<6;++i) {
+    if (pmy_mesh_->mesh_bcs[i] != OUTFLOW_BNDRY) {
+      std::stringstream msg;
+      msg << "### FATAL ERROR in OBCGravityDriver::OBCGravityDriver" << std::endl
+           << "outflow boundary condition is required." << std::endl;
+      throw std::runtime_error(msg.str().c_str());
+    }
+  }
   if (COORDINATE_SYSTEM=="cartesian") {
     pmy_og_car = new OBCGravityCar(this, pm->pblock, pin);
     pmy_og_cyl = NULL;

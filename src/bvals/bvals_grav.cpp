@@ -88,7 +88,9 @@ void GravityBoundaryValues::InitBoundaryData(GravityBoundaryData &bd) {
 
     // Allocate buffers
     // calculate the buffer size
-    if ((SELF_GRAVITY_ENABLED==3)&(BoundaryValues::ni[n].type==NEIGHBOR_FACE)) {
+    if ((SELF_GRAVITY_ENABLED==3)
+        &&((BoundaryValues::ni[n].type==NEIGHBOR_FACE)
+         ||(BoundaryValues::ni[n].type==NEIGHBOR_EDGE))) {
       // SMOON For James method, increase the size of the send/recv buffer
       // so that it includes the single layer of the ghost cells at the
       // physical boundary.
@@ -275,13 +277,15 @@ int GravityBoundaryValues::LoadGravityBoundaryBufferSameLevel(AthenaArray<Real> 
   sk=(nb.ox3>0)?(pmb->ke-NGHOST+1):pmb->ks;
   ek=(nb.ox3<0)?(pmb->ks+NGHOST-1):pmb->ke;
 
-  if ((SELF_GRAVITY_ENABLED==3)&(nb.type==NEIGHBOR_FACE)) {
-    if ((loc.lx1==0)&(nb.ox1==0)) si=pmb->is-1;
-    if ((loc.lx2==0)&(nb.ox2==0)) sj=pmb->js-1;
-    if ((loc.lx3==0)&(nb.ox3==0)) sk=pmb->ks-1;
-    if ((loc.lx1==pmy_mesh_->nrbx1-1)&(nb.ox1==0)) ei=pmb->ie+1;
-    if ((loc.lx2==pmy_mesh_->nrbx2-1)&(nb.ox2==0)) ej=pmb->je+1;
-    if ((loc.lx3==pmy_mesh_->nrbx3-1)&(nb.ox3==0)) ek=pmb->ke+1;
+  if ((SELF_GRAVITY_ENABLED==3)
+      &&((nb.type==NEIGHBOR_FACE)
+      ||(nb.type==NEIGHBOR_EDGE))) {
+    if ((loc.lx1==0)&&(nb.ox1==0)) si=pmb->is-1;
+    if ((loc.lx2==0)&&(nb.ox2==0)) sj=pmb->js-1;
+    if ((loc.lx3==0)&&(nb.ox3==0)) sk=pmb->ks-1;
+    if ((loc.lx1==pmy_mesh_->nrbx1-1)&&(nb.ox1==0)) ei=pmb->ie+1;
+    if ((loc.lx2==pmy_mesh_->nrbx2-1)&&(nb.ox2==0)) ej=pmb->je+1;
+    if ((loc.lx3==pmy_mesh_->nrbx3-1)&&(nb.ox3==0)) ek=pmb->ke+1;
   }
 
   int p=0;
@@ -357,25 +361,16 @@ void GravityBoundaryValues::SetGravityBoundarySameLevel(AthenaArray<Real> &dst, 
   else if (nb.ox3>0) sk=pmb->ke+1,      ek=pmb->ke+NGHOST;
   else              sk=pmb->ks-NGHOST, ek=pmb->ks-1;
 
-  if ((SELF_GRAVITY_ENABLED==3)&(nb.type==NEIGHBOR_FACE)) {
-//    if (Globals::my_rank==0) {
-//      std::cout << "my neighbor is at direction (" << nb.ox1 << "," << nb.ox2 << "," << nb.ox3 << ")" << std::endl;
-//    }
-    if ((loc.lx1==0)&(nb.ox1==0)) si=pmb->is-1;
-    if ((loc.lx2==0)&(nb.ox2==0)) sj=pmb->js-1;
-    if ((loc.lx3==0)&(nb.ox3==0)) sk=pmb->ks-1;
-    if ((loc.lx1==pmy_mesh_->nrbx1-1)&(nb.ox1==0)) ei=pmb->ie+1;
-    if ((loc.lx2==pmy_mesh_->nrbx2-1)&(nb.ox2==0)) ej=pmb->je+1;
-    if ((loc.lx3==pmy_mesh_->nrbx3-1)&(nb.ox3==0)) ek=pmb->ke+1;
+  if ((SELF_GRAVITY_ENABLED==3)
+      &&((nb.type==NEIGHBOR_FACE)
+      ||(nb.type==NEIGHBOR_EDGE))) {
+    if ((loc.lx1==0)&&(nb.ox1==0)) si=pmb->is-1;
+    if ((loc.lx2==0)&&(nb.ox2==0)) sj=pmb->js-1;
+    if ((loc.lx3==0)&&(nb.ox3==0)) sk=pmb->ks-1;
+    if ((loc.lx1==pmy_mesh_->nrbx1-1)&&(nb.ox1==0)) ei=pmb->ie+1;
+    if ((loc.lx2==pmy_mesh_->nrbx2-1)&&(nb.ox2==0)) ej=pmb->je+1;
+    if ((loc.lx3==pmy_mesh_->nrbx3-1)&&(nb.ox3==0)) ek=pmb->ke+1;
   }
-//  if (Globals::my_rank==0) {
-//    std::cout << "pmb->is = " << pmb->is << " si = " << si << std::endl;
-//    std::cout << "pmb->ie = " << pmb->ie << " ei = " << ei << std::endl;
-//    std::cout << "pmb->js = " << pmb->js << " sj = " << sj << std::endl;
-//    std::cout << "pmb->je = " << pmb->je << " ej = " << ej << std::endl;
-//    std::cout << "pmb->ks = " << pmb->ks << " sk = " << sk << std::endl;
-//    std::cout << "pmb->ke = " << pmb->ke << " ek = " << ek << std::endl;
-//  }
 
   int p=0;
 // Now, gravity only works with Cartesian coordinate

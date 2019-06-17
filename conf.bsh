@@ -1,2 +1,2 @@
-#./configure.py --prob=poly_equil --coord=cartesian --grav=obc -mpi -hdf5 -h5double -fft
-./configure.py --prob=torus --coord=cylindrical --grav=obc -mpi -hdf5 -h5double -fft
+./configure.py --prob=poly_equil --coord=cartesian --grav=obc -mpi -hdf5 -h5double -fft
+#./configure.py --prob=torus --coord=cylindrical --grav=obc -mpi -hdf5 -h5double -fft
