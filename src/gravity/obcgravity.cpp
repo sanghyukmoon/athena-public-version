@@ -2066,6 +2066,7 @@ void OBCGravityCar::RetrieveResult(AthenaArray<Real> &dst)
   int is, ie, js, je, ks, ke;
   int gis,gie,gjs,gje,gks,gke;
   int idx;
+  Mesh *pm = pmy_block->pmy_mesh;
   is = pmy_block->is; js = pmy_block->js; ks = pmy_block->ks;
   ie = pmy_block->ie; je = pmy_block->je; ke = pmy_block->ke;
   gis = (pmy_block->loc.lx1)*nx1;
@@ -2106,46 +2107,52 @@ void OBCGravityCar::RetrieveResult(AthenaArray<Real> &dst)
     }
   }
   if (gjs == 0) {
-    int ishift=0, kshift=0;
-    if (bndry_dcmps[WST][CBLOCK].is==0) ishift=ngh_;
+    int ishrink=0, ishift=0, kshift=0;
+    if (gis==0) {ishrink++; ishift=ngh_;}
+    if (gie==Nx1-1) ishrink++;
     if (bndry_dcmps[WST][CBLOCK].ks==0) kshift=ngh_;
     for (int k=0;k<bndry_dcmps[WST][CBLOCK].nx3;++k) {
-      for (int i=0;i<bndry_dcmps[WST][CBLOCK].nx1;++i) {
-        int idx2 = i + bndry_dcmps[WST][CBLOCK].nx1*k;
-        dst(k+ks-kshift,js-1,i+is-ishift) = -sigma[WST][idx2];
+      for (int i=0;i<bndry_dcmps[WST][CBLOCK].nx1-ishrink;++i) {
+        int idx2 = i+ishift + bndry_dcmps[WST][CBLOCK].nx1*k;
+        dst(k+ks-kshift,js-1,i+is) = -sigma[WST][idx2];
       }
     }
   }
   if (gje == Nx2-1) {
-    int ishift=0, kshift=0;
-    if (bndry_dcmps[EST][CBLOCK].is==0) ishift=ngh_;
+    int ishrink=0, ishift=0, kshift=0;
+    if (gis==0) {ishrink++; ishift=ngh_;}
+    if (gie==Nx1-1) ishrink++;
     if (bndry_dcmps[EST][CBLOCK].ks==0) kshift=ngh_;
     for (int k=0;k<bndry_dcmps[EST][CBLOCK].nx3;++k) {
-      for (int i=0;i<bndry_dcmps[EST][CBLOCK].nx1;++i) {
-        int idx2 = i + bndry_dcmps[EST][CBLOCK].nx1*k;
-        dst(k+ks-kshift,je+1,i+is-ishift) = -sigma[EST][idx2];
+      for (int i=0;i<bndry_dcmps[EST][CBLOCK].nx1-ishrink;++i) {
+        int idx2 = i+ishift + bndry_dcmps[EST][CBLOCK].nx1*k;
+        dst(k+ks-kshift,je+1,i+is) = -sigma[EST][idx2];
       }
     }
   }
   if (gks == 0) {
-    int ishift=0, jshift=0;
-    if (bndry_dcmps[CBOT][CBLOCK].is==0) ishift=ngh_;
-    if (bndry_dcmps[CBOT][CBLOCK].js==0) jshift=ngh_;
-    for (int j=0;j<bndry_dcmps[CBOT][CBLOCK].nx2;++j) {
-      for (int i=0;i<bndry_dcmps[CBOT][CBLOCK].nx1;++i) {
-        int idx2 = i + bndry_dcmps[CBOT][CBLOCK].nx1*j;
-        dst(ks-1,j+js-jshift,i+is-ishift) = -sigma[CBOT][idx2];
+    int ishrink=0, jshrink=0, ishift=0, jshift=0;
+    if (gis==0) {ishrink++; ishift=ngh_;}
+    if (gie==Nx1-1) ishrink++;
+    if (gjs==0) {jshrink++; jshift=ngh_;}
+    if (gje==Nx2-1) jshrink++;
+    for (int j=0;j<bndry_dcmps[CBOT][CBLOCK].nx2-jshrink;++j) {
+      for (int i=0;i<bndry_dcmps[CBOT][CBLOCK].nx1-ishrink;++i) {
+        int idx2 = i+ishift + bndry_dcmps[CBOT][CBLOCK].nx1*(j+jshift);
+        dst(ks-1,j+js,i+is) = -sigma[CBOT][idx2];
       }
     }
   }
   if (gke == Nx3-1) {
-    int ishift=0, jshift=0;
-    if (bndry_dcmps[CTOP][CBLOCK].is==0) ishift=ngh_;
-    if (bndry_dcmps[CTOP][CBLOCK].js==0) jshift=ngh_;
-    for (int j=0;j<bndry_dcmps[CTOP][CBLOCK].nx2;++j) {
-      for (int i=0;i<bndry_dcmps[CTOP][CBLOCK].nx1;++i) {
-        int idx2 = i + bndry_dcmps[CTOP][CBLOCK].nx1*j;
-        dst(ke+1,j+js-jshift,i+is-ishift) = -sigma[CTOP][idx2];
+    int ishrink=0, jshrink=0, ishift=0, jshift=0;
+    if (gis==0) {ishrink++; ishift=ngh_;}
+    if (gie==Nx1-1) ishrink++;
+    if (gjs==0) {jshrink++; jshift=ngh_;}
+    if (gje==Nx2-1) jshrink++;
+    for (int j=0;j<bndry_dcmps[CTOP][CBLOCK].nx2-jshrink;++j) {
+      for (int i=0;i<bndry_dcmps[CTOP][CBLOCK].nx1-ishrink;++i) {
+        int idx2 = i+ishift + bndry_dcmps[CTOP][CBLOCK].nx1*(j+jshift);
+        dst(ke+1,j+js,i+is) = -sigma[CTOP][idx2];
       }
     }
   }
