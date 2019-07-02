@@ -239,7 +239,7 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
           phydro->u(IDN,k,j,i) = 0.0;
           phydro->u(IM1,k,j,i) = 0;
           /* uniform sphere */
-          for (int p=2;p<pfold;++p) {
+          for (int p=0;p<pfold;++p) {
             r2 = SQR(pcoord->x1v(i)) + SQR(R0)
                  - 2*pcoord->x1v(i)*R0*cos(pcoord->x2v(j) - phi0 - 2*PI*p/pfold)
                  + SQR(pcoord->x3v(k) - z0);
