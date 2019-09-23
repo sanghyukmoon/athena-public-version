@@ -262,6 +262,19 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
           }
           phydro->u(IM1,k,j,i) = hr.Phi(pcoord->x1v(i), pcoord->x2v(j), pcoord->x3v(k));
         }
+        else if (iprob==4) {
+          /* point mass (discrete Green's function) */
+          if ( (i-is==31)&&(j-js==16)&&(k-ks==16) ) {
+            Real dV = 0.5*(SQR(pcoord->x1f(i+1)) - SQR(pcoord->x1f(i)))\
+                      *pcoord->dx2v(j)*pcoord->dx3v(k);
+            std::cout << pcoord->x1v(i) << " " << pcoord->x2v(j) << " " <<
+              pcoord->x3v(k);
+            phydro->u(IDN,k,j,i) = 1.0 / dV;
+          }
+          else {
+            phydro->u(IDN,k,j,i) = 0.0;
+          }
+        }
       }
     }
   }

@@ -22,6 +22,7 @@
 #   -float            enable single precision (default is double)
 #   -mpi              enable parallelization with MPI
 #   -omp              enable parallelization with OpenMP
+#   -gsl              use GSL library
 #   -hdf5             enable HDF5 output (requires the HDF5 library)
 #   --hdf5_path=path  path to HDF5 libraries (requires the HDF5 library)
 #   -fft              enable FFT (requires the FFTW library)
@@ -163,6 +164,12 @@ parser.add_argument('--fftw_path',
                     type=str,
                     default='',
                     help='path to FFTW libraries')
+
+# -gsl argument
+parser.add_argument('-gsl',
+                    action='store_true',
+                    default=False,
+                    help='use GSL')
 
 # -hdf5 argument
 parser.add_argument('-hdf5',
@@ -534,6 +541,10 @@ if args['fft']:
     if args['mpi']:
         makefile_options['MPIFFT_FILE'] = ' $(wildcard src/fft/plimpton/*.cpp)'
     makefile_options['LIBRARY_FLAGS'] += ' -lfftw3'
+
+
+if args['gsl']:
+    makefile_options['LIBRARY_FLAGS'] += ' -lgsl -lgslcblas'
 
 # -hdf5 argument
 if args['hdf5']:
