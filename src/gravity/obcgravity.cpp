@@ -53,7 +53,7 @@ OBCGravityDriver::OBCGravityDriver(Mesh *pm, ParameterInput *pin)
 
   if (COORDINATE_SYSTEM=="cartesian") {
     for (int i=0;i<6;++i) {
-      if (pmy_mesh_->mesh_bcs[i] = PERIODIC_BNDRY) {
+      if (pmy_mesh_->mesh_bcs[i] == PERIODIC_BNDRY) {
         std::stringstream msg;
         msg << "### FATAL ERROR in OBCGravityDriver::OBCGravityDriver" << std::endl
             << "periodic BC is not allowed:" << std::endl
@@ -66,7 +66,7 @@ OBCGravityDriver::OBCGravityDriver(Mesh *pm, ParameterInput *pin)
   }
   else if (COORDINATE_SYSTEM=="cylindrical") {
     for (int i=0;i<2;++i) {
-      if (pmy_mesh_->mesh_bcs[i] = PERIODIC_BNDRY) {
+      if (pmy_mesh_->mesh_bcs[i] == PERIODIC_BNDRY) {
         std::stringstream msg;
         msg << "### FATAL ERROR in OBCGravityDriver::OBCGravityDriver" << std::endl
             << "periodic BC is not allowed in the radial direction:" << std::endl
@@ -83,7 +83,7 @@ OBCGravityDriver::OBCGravityDriver(Mesh *pm, ParameterInput *pin)
       }
     }
     for (int i=4;i<6;++i) {
-      if (pmy_mesh_->mesh_bcs[i] = PERIODIC_BNDRY) {
+      if (pmy_mesh_->mesh_bcs[i] == PERIODIC_BNDRY) {
         std::stringstream msg;
         msg << "### FATAL ERROR in OBCGravityDriver::OBCGravityDriver" << std::endl
             << "periodic BC is not allowed in the vertical direction:" << std::endl
