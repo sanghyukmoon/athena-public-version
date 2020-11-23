@@ -53,10 +53,11 @@ OBCGravityDriver::OBCGravityDriver(Mesh *pm, ParameterInput *pin)
 
   if (COORDINATE_SYSTEM=="cartesian") {
     for (int i=0;i<6;++i) {
-      if (pmy_mesh_->mesh_bcs[i] != OUTFLOW_BNDRY) {
+      if (pmy_mesh_->mesh_bcs[i] = PERIODIC_BNDRY) {
         std::stringstream msg;
         msg << "### FATAL ERROR in OBCGravityDriver::OBCGravityDriver" << std::endl
-             << "outflow boundary condition is required." << std::endl;
+            << "periodic BC is not allowed:" << std::endl
+            << "currently, setting periodic BC overwrites Phi at ghost zones" << std::endl;
         throw std::runtime_error(msg.str().c_str());
       }
     }
@@ -65,10 +66,11 @@ OBCGravityDriver::OBCGravityDriver(Mesh *pm, ParameterInput *pin)
   }
   else if (COORDINATE_SYSTEM=="cylindrical") {
     for (int i=0;i<2;++i) {
-      if (pmy_mesh_->mesh_bcs[i] != OUTFLOW_BNDRY) {
+      if (pmy_mesh_->mesh_bcs[i] = PERIODIC_BNDRY) {
         std::stringstream msg;
         msg << "### FATAL ERROR in OBCGravityDriver::OBCGravityDriver" << std::endl
-             << "outflow boundary condition is required for R,z direction." << std::endl;
+            << "periodic BC is not allowed in the radial direction:" << std::endl
+            << "currently, setting periodic BC overwrites Phi at ghost zones" << std::endl;
         throw std::runtime_error(msg.str().c_str());
       }
     }
@@ -76,15 +78,16 @@ OBCGravityDriver::OBCGravityDriver(Mesh *pm, ParameterInput *pin)
       if (pmy_mesh_->mesh_bcs[i] != PERIODIC_BNDRY) {
         std::stringstream msg;
         msg << "### FATAL ERROR in OBCGravityDriver::OBCGravityDriver" << std::endl
-             << "periodic boundary condition is required for phi direction" << std::endl;
+            << "periodic boundary condition is required for the azimuthal direction" << std::endl;
         throw std::runtime_error(msg.str().c_str());
       }
     }
     for (int i=4;i<6;++i) {
-      if (pmy_mesh_->mesh_bcs[i] != OUTFLOW_BNDRY) {
+      if (pmy_mesh_->mesh_bcs[i] = PERIODIC_BNDRY) {
         std::stringstream msg;
         msg << "### FATAL ERROR in OBCGravityDriver::OBCGravityDriver" << std::endl
-             << "outflow boundary condition is required for R,z direction." << std::endl;
+            << "periodic BC is not allowed in the vertical direction:" << std::endl
+            << "currently, setting periodic BC overwrites Phi at ghost zones" << std::endl;
         throw std::runtime_error(msg.str().c_str());
       }
     }
