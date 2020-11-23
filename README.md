@@ -13,7 +13,8 @@ Open BC self-gravity module
 * If you use this module in publications, please kindly cite **[Moon, Kim, & Ostriker (2019)](https://ui.adsabs.harvard.edu/abs/2019ApJS..241...24M/abstract)**.
 
 #### Usage
-* To activate open BC self-gravity, compile with `--grav=obc -fft`
+* To activate open BC self-gravity, compile with `--grav=obc -fft -mpi`
+* Serial version is not implemented; if you want to run with single core, do $mpirun -np 1
 
 #### Test problem
 * $./configure.py --prob=cylgrav_test --coord=cylindrical --grav=obc -fft -mpi
