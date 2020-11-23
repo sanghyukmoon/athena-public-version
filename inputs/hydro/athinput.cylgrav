@@ -1,0 +1,68 @@
+<comment>
+problem   = Cylindrical Poisson solver
+reference = Moon, Kim, & Ostriker 2019, ApJS, 241, 24
+configure = --prob=cylgrav_test --coord=cylindrical --grav=obc -fft -mpi (-gsl for iprob=2)
+
+<job>
+problem_id  = cylgrav       # problem ID: basename of output filenames
+
+<output1>
+file_type   = vtk       # Tabular data dump
+variable    = cons      # variables to be output
+ghost_zones = false    # output ghost zone variables?
+dt          = 100      # time increment between outputs
+
+<time>
+cfl_number  = 0.3       # The Courant, Friedrichs, & Lewy (CFL) Number
+nlim        = 0         # cycle limit
+tlim        = 500      # time limit
+integrator  = vl2       # time integration algorithm
+
+<mesh>
+nx1         = 64        # Number of zones in X1-direction
+x1min       = 0.01       # minimum value of X1
+x1max       = 1         # maximum value of X1
+x1rat       = 1.0746078283213174  # uniform (=1.0) or logarithmic (>1.0) spacing
+ix1_bc      = outflow   # Inner-X1 boundary condition flag
+ox1_bc      = outflow   # Outer-X1 boundary condition flag
+
+nx2         = 32        # Number of zones in X2-direction
+x2min       = 0         # minimum value of X2
+x2max       = 6.283185307179586       # maximum value of X2
+ix2_bc      = periodic  # Inner-X2 boundary condition flag
+ox2_bc      = periodic  # Outer-X2 boundary condition flag
+
+nx3         = 32         # Number of zones in X3-direction
+x3min       = -0.25      # minimum value of X3
+x3max       = 0.25        # maximum value of X3
+ix3_bc      = outflow   # Inner-X3 boundary condition flag
+ox3_bc      = outflow   # Outer-X3 boundary condition flag
+
+<meshblock>
+nx1 = 32
+nx2 = 16
+nx3 = 32
+
+<hydro>
+gamma           = 1.4   # gamma = C_p/C_v
+iso_sound_speed = 1.0   # isothermal sound speed
+
+<problem>
+iprob       = 1      # problem id: uniform sphere (1), cylindrical mesh element (2)
+rho0        = 1.0    # density of the sphere
+rad         = 0.2    # radius of the sphere
+R0          = 0.27   # x1 position of the center of the sphere
+phi0        = 0.38   # x2 position of the center of the sphere
+z0          = -0.04  # x3 position of the center of the sphere
+
+a1          = 0.03162277660168387 # x1min of the mesh element
+a2          = 0.7498942093324562  # x1max of the mesh element
+t1          = 0                   # x2min of the mesh element
+t2          = 1.1780972450961724  # x2max of the mesh element
+z1          = -0.0625             # x3min of the mesh element
+z2          = 0.1875              # x3max of the mesh element
+
+ncycle      = 1
+four_pi_G   = 12.566370614359172
+
+pfold       = 1                   # assume p-fold symmetry
