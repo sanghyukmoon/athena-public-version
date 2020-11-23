@@ -44,18 +44,7 @@
 //  \brief Should be used to set initial conditions.
 //========================================================================================
 
-void InnerX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,FaceField &b,
-  Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
-void OuterX1(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,FaceField &b,
-  Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
-void InnerX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,FaceField &b,
-  Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
-void OuterX2(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,FaceField &b,
-  Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
-void InnerX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,FaceField &b,
-  Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
-void OuterX3(MeshBlock *pmb, Coordinates *pco, AthenaArray<Real> &prim,FaceField &b,
-  Real time, Real dt, int is, int ie, int js, int je, int ks, int ke, int ngh);
+
 
 void Mesh::InitUserMeshData(ParameterInput *pin)
 {
@@ -64,25 +53,6 @@ void Mesh::InitUserMeshData(ParameterInput *pin)
   SetFourPiG(four_pi_G);
   SetGravityThreshold(eps);
   SetMeanDensity(0.0);
-
-//  if(mesh_bcs[INNER_X1] == GetBoundaryFlag("user")) {
-//    EnrollUserBoundaryFunction(INNER_X1, InnerX1);
-//  }
-//  if(mesh_bcs[OUTER_X1] == GetBoundaryFlag("user")) {
-//    EnrollUserBoundaryFunction(OUTER_X1, OuterX1);
-//  }
-//  if(mesh_bcs[INNER_X2] == GetBoundaryFlag("user")) {
-//    EnrollUserBoundaryFunction(INNER_X2, InnerX2);
-//  }
-//  if(mesh_bcs[OUTER_X2] == GetBoundaryFlag("user")) {
-//    EnrollUserBoundaryFunction(OUTER_X2, OuterX2);
-//  }
-//  if(mesh_bcs[INNER_X3] == GetBoundaryFlag("user")) {
-//    EnrollUserBoundaryFunction(INNER_X3, InnerX3);
-//  }
-//  if(mesh_bcs[OUTER_X3] == GetBoundaryFlag("user")) {
-//    EnrollUserBoundaryFunction(OUTER_X3, OuterX3);
-//  }
 }
 
 void MeshBlock::ProblemGenerator(ParameterInput *pin)
@@ -96,20 +66,30 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
     throw std::runtime_error(msg.str().c_str());
   }
   Real four_pi_G = pin->GetReal("problem", "four_pi_G");
+  // center position of the polytrope
+  Real x1c   = pin->GetReal("problem","x1c");
+  Real x2c   = pin->GetReal("problem","x2c");
+  Real x3c   = pin->GetReal("problem","x3c");
+  // background velociy
+  Real v1    = pin->GetReal("problem","v1");
+  Real v2    = pin->GetReal("problem","v2");
+  Real v3    = pin->GetReal("problem","v3");
   Real rhoc  = pin->GetReal("problem","rhoc");
-  Real damb  = pin->GetReal("problem","damb");
-  Real pamb  = pin->GetReal("problem","pamb");
-  Real rsurf = pin->GetReal("problem","rsurf");
-  Real Pc = four_pi_G*SQR(rhoc*rsurf)/SQR(PI)/2;
-  Real xi,x,y,z,den,prs;
-  Real vx=0, vy=0, vz=0;
+  Real damb  = pin->GetReal("problem","damb");  // ambient density
+  Real pamb  = pin->GetReal("problem","pamb");  // ambient pressure
+  Real rsurf = pin->GetReal("problem","rsurf"); // radius of the polytrope
+  Real Pc = four_pi_G*SQR(rhoc*rsurf)/SQR(PI)/2; // central pressure
+  Real xi,x1,x2,x3,den,prs;
   for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
       for (int i=is; i<=ie; ++i) {
-        x = pcoord->x1v(i);
-        y = pcoord->x2v(j);
-        z = pcoord->x3v(k);
-        xi = PI*sqrt(SQR(x)+SQR(y)+SQR(z))/rsurf;
+        x1 = pcoord->x1v(i);
+        x2 = pcoord->x2v(j);
+        x3 = pcoord->x3v(k);
+        if (COORDINATE_SYSTEM=="cartesian")
+          xi = PI*sqrt(SQR(x1-x1c)+SQR(x2-x2c)+SQR(x3-x3c))/rsurf;
+        else if (COORDINATE_SYSTEM=="cylindrical")
+          xi = PI*sqrt(SQR(x1)+SQR(x1c)-2*x1*x1c*cos(x2-x2c)+SQR(x3-x3c))/rsurf;
         if (xi < PI) {
           den = rhoc*sin(xi)/xi;
           prs = Pc*SQR(sin(xi)/xi);
@@ -119,11 +99,10 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
           prs = pamb;
         }
         phydro->u(IDN,k,j,i) = den;
-        phydro->u(IM1,k,j,i) = phydro->u(IDN,k,j,i)*vx;
-        phydro->u(IM2,k,j,i) = phydro->u(IDN,k,j,i)*vy;
-        phydro->u(IM3,k,j,i) = phydro->u(IDN,k,j,i)*vz;
-        phydro->u(IEN,k,j,i) = 0.5*phydro->u(IDN,k,j,i)*(SQR(vx)+SQR(vy)+SQR(vz))
-          + prs/gm1;
+        phydro->u(IM1,k,j,i) = den*v1;
+        phydro->u(IM2,k,j,i) = den*v2;
+        phydro->u(IM3,k,j,i) = den*v3;
+        phydro->u(IEN,k,j,i) = prs/gm1 + 0.5*den*(SQR(v1)+SQR(v2)+SQR(v3));
       }
     }
   }
