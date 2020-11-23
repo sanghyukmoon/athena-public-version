@@ -11,13 +11,12 @@
 
 // C++ headers
 #include <iostream>  // cout, endl
+#include <sstream>    // sstream
 #include <iomanip>   // setprecision, scientific
 #include <cmath>
 #include <ctime>
 #include <mpi.h>
-#include <gsl/gsl_sf_ellint.h>
-#include <gsl/gsl_integration.h>
-#include <gsl/gsl_errno.h>
+
 // Athena++ headers
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
@@ -39,6 +38,11 @@
 #include "../fft/plimpton/pack_2d.h"
 
 #define MAX(X,Y) ((X) > (Y) ? (X) : (Y))
+
+#ifdef GSL_INCLUDED
+#include <gsl/gsl_sf_ellint.h>
+#include <gsl/gsl_integration.h>
+#include <gsl/gsl_errno.h>
 
 class Hure;
 // Hure class  for the analytic potential
@@ -183,7 +187,7 @@ double Hure::Phi(double R, double phi, double z) {
   res += result;
   return -four_pi_G_ * rho0_ * res / 4.0 / M_PI;
 }
-
+#endif // GSL_INCLUDED
 
 //========================================================================================
 //! \fn void MeshBlock::ProblemGenerator(ParameterInput *pin)
@@ -213,38 +217,31 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
   Real t2   = pin->GetReal("problem","t2");
   Real z1   = pin->GetReal("problem","z1");
   Real z2   = pin->GetReal("problem","z2");
+  RegionSize& mesh_size = pmy_mesh->mesh_size;
   int iprob = pin->GetInteger("problem","iprob");
   int pfold = pin->GetInteger("problem","pfold");
+  Real x1,x2,x3;
  
   Real four_pi_G = pin->GetReal("problem","four_pi_G");
 
+#ifdef GSL_INCLUDED
   Hure hr(a1, a2, t1, t2, z1, z2);
+#endif
   
   for (int k=ks; k<=ke; ++k) {
     for (int j=js; j<=je; ++j) {
       for (int i=is; i<=ie; ++i) {
         if (iprob==1) {
-          /* homogeneous torus (Bannikova 2011) */
-          r2 = SQR(pcoord->x1v(i)) + SQR(R0)
-               - 2*pcoord->x1v(i)*R0
-               + SQR(pcoord->x3v(k) - z0);
-          if (r2 < rad*rad) {
-            phydro->u(IDN,k,j,i) = rho0;
-          }
-          else {
-            phydro->u(IDN,k,j,i) = 0.0;
-          }
-        }
-        else if (iprob==2) {
+          // uniform sphere
           phydro->u(IDN,k,j,i) = 0.0;
           phydro->u(IM1,k,j,i) = 0;
-          /* uniform sphere */
           for (int p=0;p<pfold;++p) {
-            r2 = SQR(pcoord->x1v(i)) + SQR(R0)
-                 - 2*pcoord->x1v(i)*R0*cos(pcoord->x2v(j) - phi0 - 2*PI*p/pfold)
-                 + SQR(pcoord->x3v(k) - z0);
-            if (r2 < rad*rad) {
-              phydro->u(IDN,k,j,i) = rho0;
+            x1 = pcoord->x1v(i);
+            x2 = pcoord->x2v(j) - 2*PI*p/pfold;
+            x3 = pcoord->x3v(k);
+            r2 = SQR(x1) + SQR(R0) - 2*x1*R0*cos(x2-phi0) + SQR(x3-z0);
+            if (r2 < SQR(rad)) {
+              phydro->u(IDN,k,j,i) += rho0;
               phydro->u(IM1,k,j,i) -= 0.5*(four_pi_G)*rho0*(rad*rad - r2/3.);
             }
             else {
@@ -252,28 +249,30 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin)
             }
           }
         }
-        else if (iprob==3) {
-          /* cylindrical mesh element (Hure 2014) */
-          if ( (a1 < pcoord->x1v(i))&&(pcoord->x1v(i) < a2)&&(t1 < pcoord->x2v(j))&&(pcoord->x2v(j) < t2)&&(z1 < pcoord->x3v(k))&&(pcoord->x3v(k) < z2) ) {
+        else if (iprob==2) {
+          // cylindrical mesh element (Hure 2014)
+#ifdef GSL_INCLUDED
+          phydro->u(IM1,k,j,i) = 0;
+          x1 = pcoord->x1v(i);
+          x2 = pcoord->x2v(j);
+          x3 = pcoord->x3v(k);
+          if ((a1 < x1)&&(x1 < a2)&&
+              (t1 < x2)&&(x2 < t2)&&
+              (z1 < x3)&&(x3 < z2))
             phydro->u(IDN,k,j,i) = rho0;
-          }
-          else {
+          else
             phydro->u(IDN,k,j,i) = 0.0;
+          for (int p=0;p<pfold;++p) {
+            x2 -= - 2*PI*p/pfold;
+            phydro->u(IM1,k,j,i) += hr.Phi(x1, x2, x3);
           }
-          phydro->u(IM1,k,j,i) = hr.Phi(pcoord->x1v(i), pcoord->x2v(j), pcoord->x3v(k));
-        }
-        else if (iprob==4) {
-          /* point mass (discrete Green's function) */
-          if ( (i-is==31)&&(j-js==16)&&(k-ks==16) ) {
-            Real dV = 0.5*(SQR(pcoord->x1f(i+1)) - SQR(pcoord->x1f(i)))\
-                      *pcoord->dx2v(j)*pcoord->dx3v(k);
-            std::cout << pcoord->x1v(i) << " " << pcoord->x2v(j) << " " <<
-              pcoord->x3v(k);
-            phydro->u(IDN,k,j,i) = 1.0 / dV;
-          }
-          else {
-            phydro->u(IDN,k,j,i) = 0.0;
-          }
+#else
+          std::stringstream msg;
+          msg << "### FATAL ERROR in MeshBlock::ProblemGenerator" << std::endl
+               << "cylindrical mesh element problem requires GNU Scientific Library"
+               << " Try compiling with -gsl" << std::endl;
+          throw std::runtime_error(msg.str().c_str());
+#endif
         }
       }
     }

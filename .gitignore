@@ -46,3 +46,5 @@ meshtest.dat
 # editor temp files
 *~
 *.swp
+
+# tags file produced from ctags

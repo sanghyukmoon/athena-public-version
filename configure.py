@@ -542,8 +542,10 @@ if args['fft']:
         makefile_options['MPIFFT_FILE'] = ' $(wildcard src/fft/plimpton/*.cpp)'
     makefile_options['LIBRARY_FLAGS'] += ' -lfftw3'
 
-
+# -gsl argument
+definitions['GSL_INCLUDED'] = '0'
 if args['gsl']:
+    definitions['GSL_INCLUDED'] = '1'
     makefile_options['LIBRARY_FLAGS'] += ' -lgsl -lgslcblas'
 
 # -hdf5 argument

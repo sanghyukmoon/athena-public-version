@@ -39,6 +39,9 @@
 
 #define @FFT_DEFINE@
 
+// include GNU scientific library? default=0 (false)
+#define GSL_INCLUDED @GSL_INCLUDED@
+
 // include radiative transfer? default=0 (false)
 #define RADIATION_ENABLED 0
 
