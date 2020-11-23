@@ -543,10 +543,11 @@ if args['fft']:
     makefile_options['LIBRARY_FLAGS'] += ' -lfftw3'
 
 # -gsl argument
-definitions['GSL_INCLUDED'] = '0'
 if args['gsl']:
-    definitions['GSL_INCLUDED'] = '1'
+    definitions['GSL_OPTION'] = 'GSL_INCLUDED'
     makefile_options['LIBRARY_FLAGS'] += ' -lgsl -lgslcblas'
+else:
+    definitions['GSL_OPTION'] = 'NOT_GSL_INCLUDED'
 
 # -hdf5 argument
 if args['hdf5']:
