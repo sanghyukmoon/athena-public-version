@@ -14,3 +14,7 @@ Open BC self-gravity module
 
 #### Usage
 * To activate open BC self-gravity, compile with `--grav=obc -fft`
+
+#### Test problem
+* $./configure.py --prob=cylgrav_test --coord=cylindrical --grav=obc -fft -mpi
+* $mpirun -np 4 bin/athena -i inputs/hydro/athinput.cylgrav
