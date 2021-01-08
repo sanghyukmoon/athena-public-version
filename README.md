@@ -7,7 +7,7 @@ Athena++ radiation MHD code
 Open BC self-gravity module
 ======
 * This branch implements the James algorithm for self-gravity with open (vacuum) boundary condition in Cartesian and cylindrical coordinates.
-* **WARNING: this module is built on Athena++ v1.1.1 released on Aug 2018.**
+* **WARNING: this module is built on Athena++ v1.1.1 released in Aug 2018.**
 * In Cartesian coordinates, the gravitational force is added as a momentum flux.
 * In cylindrical coordinates, the gravitational force is added as a source term.
 * If you use this module in publications, please kindly cite **[Moon, Kim, & Ostriker (2019)](https://ui.adsabs.harvard.edu/abs/2019ApJS..241...24M/abstract)**.
