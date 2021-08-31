@@ -174,7 +174,7 @@ parser.add_argument('-omp',
 # --grav=[name] argument
 parser.add_argument('--grav',
                     default='none',
-                    choices=['none', 'fft'],
+                    choices=['none', 'fft', 'obc'],
                     help='select self-gravity solver')
 
 # -fft argument
@@ -671,6 +671,11 @@ else:
         if not args['fft']:
             raise SystemExit(
                 '### CONFIGURE ERROR: FFT Poisson solver only be used with FFT')
+    if args['grav'] == "obc":
+        definitions['SELF_GRAVITY_ENABLED'] = '3'
+        if not args['fft']:
+            raise SystemExit(
+                '### CONFIGURE ERROR: James method only be used with FFT')
 
 # -fft argument
 makefile_options['MPIFFT_FILE'] = ' '
@@ -775,6 +780,8 @@ if args['grav'] == 'fft':
     self_grav_string = 'FFT'
 elif args['grav'] == 'mg':
     self_grav_string = 'Multigrid'
+elif args['grav'] == 'obc':
+    self_grav_string = 'James'
 
 print('Your Athena++ distribution has now been configured with the following options:')
 print('  Problem generator:          ' + args['prob'])
