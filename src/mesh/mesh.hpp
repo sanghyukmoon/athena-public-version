@@ -46,6 +46,7 @@ class Hydro;
 class Field;
 class PassiveScalars;
 class Gravity;
+class OBCGravityDriver;
 class MGGravity;
 class MGGravityDriver;
 class EquationOfState;
@@ -244,6 +245,7 @@ class Mesh {
   TurbulenceDriver *ptrbd;
   FFTGravityDriver *pfgrd;
   MGGravityDriver *pmgrd;
+  OBCGravityDriver *pogrd;
 
   AthenaArray<Real> *ruser_mesh_data;
   AthenaArray<int> *iuser_mesh_data;
