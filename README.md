@@ -10,3 +10,15 @@ Athena++ GRMHD code and adaptive mesh refinement (AMR) framework
 
 https://github.com/PrincetonUniversity/athena
 
+James Open BC self-gravity
+======
+
+Implementation of the James algorithm on the public version of Athena++.
+
+Enables self-gravity with open boundary condition in either Cartesian or **cylindrical** coordinates (in 3-D).
+
+Method paper:  **[Moon, Kim, & Ostriker (2019)](https://ui.adsabs.harvard.edu/abs/2019ApJS..241...24M/abstract)**.
+
+### Usage                                                                                  
+* To activate open BC self-gravity, compile with `--grav=obc -fft -mpi`                     
+* Note that the serial version is not implemented; if you want to run with single core, do $mpirun -np 1
