@@ -29,7 +29,6 @@
 #include "../coordinates/coordinates.hpp"
 #include "../parameter_input.hpp"
 #include "../hydro/hydro.hpp"
-// #include "../task_list/grav_task_list.hpp"
 
 #ifdef MPI_PARALLEL
 #include <mpi.h>
@@ -106,7 +105,7 @@ OBCGravityDriver::OBCGravityDriver(Mesh *pm, ParameterInput *pin)
          << "Number of MeshBlocks should be equal to the number of processors" << std::endl;
     throw std::runtime_error(msg.str().c_str());
   }
-//  gtlist_ = new GravitySolverTaskList(pin, pm);
+  gtlist_ = new FFTGravitySolverTaskList(pin, pm);
 }
 
 // destructor
@@ -122,7 +121,7 @@ OBCGravityDriver::~OBCGravityDriver()
          << "Currently, James solver only works in cartesian or cylindrical coordinates." << std::endl;
     throw std::runtime_error(msg.str().c_str());
   }
-//  delete gtlist_;
+  delete gtlist_;
 }
 
 void OBCGravityDriver::Solve(int stage)
@@ -144,23 +143,7 @@ void OBCGravityDriver::Solve(int stage)
     // Step 4: Solve Poisson equation with correct boundary condition.
     pmy_og_car->SolveZeroBC();
     pmy_og_car->RetrieveResult(pmb->pgrav->phi);
-//    gtlist_->DoTaskListOneStage(pmy_mesh_, stage);
-//    std::cout << std::scientific << std::setprecision(16);
-//    if (Globals::my_rank==1) {
-//      std::cout << "ghost cell at proc 0 = " << pmb->pgrav->phi(pmb->ks+32,pmb->js+63,pmb->is-1) << std::endl;
-//    }
-//    if (Globals::my_rank==3) {
-//      std::cout << "first active cell at proc 1 = " << pmb->pgrav->phi(pmb->ks,pmb->js+63,pmb->is-1) << std::endl;
-//    }
-//    if (pmb->loc.lx1==0) {
-//      for (int k=pmb->ks-1;k<=pmb->ke+1;++k) {
-//        for (int j=pmb->js-1;j<=pmb->je+1;++j) {
-//          for (int i=pmb->ie;i>=pmb->is;--i) {
-//            pmb->pgrav->phi(k,j,i) = pmb->pgrav->phi(k,j,i-1);
-//          }
-//        }
-//      }
-//    }
+    gtlist_->DoTaskListOneStage(pmy_mesh_, stage);
   }
   else if (COORDINATE_SYSTEM=="cylindrical") {
     MeshBlock *pmb=pmy_mesh_->my_blocks(0);
@@ -179,7 +162,7 @@ void OBCGravityDriver::Solve(int stage)
     // Step 4: Solve Poisson equation with correct boundary condition.
     pmy_og_cyl->SolveZeroBC();
     pmy_og_cyl->RetrieveResult(pmb->pgrav->phi);
-//    gtlist_->DoTaskListOneStage(pmy_mesh_, stage);
+    gtlist_->DoTaskListOneStage(pmy_mesh_, stage);
   }
   else {
     std::stringstream msg;
@@ -3201,7 +3184,7 @@ void OBCGravityCyl::FillCntGrf()
   int gi,gj,gk;
   Real R, Rp, rds, psi, dV;
   if (Globals::my_rank == 0)
-    std::cout << "Calculating discrete Green's functions..." << std::endl;
+    std::cout << "Calculating continuous Green's functions..." << std::endl;
   gjp = 0;
 
   for (int i=0;i<dcmps[Gii2P0].nx1;++i) {

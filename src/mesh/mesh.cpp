@@ -542,8 +542,10 @@ Mesh::Mesh(ParameterInput *pin, int mesh_test) :
   } else if (SELF_GRAVITY_ENABLED == 2) {
     // MGDriver must be initialzied before MeshBlocks
     pmgrd = new MGGravityDriver(this, pin);
-  } else if (SELF_GRAVITY_ENABLED==3)
+  } else if (SELF_GRAVITY_ENABLED==3) {
+    gflag = 1; // set gravity flag
     pogrd = new OBCGravityDriver(this, pin);
+  }
 
   ResetLoadBalanceVariables();
 
@@ -853,8 +855,10 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
   } else if (SELF_GRAVITY_ENABLED == 2) {
     // MGDriver must be initialzied before MeshBlocks
     pmgrd = new MGGravityDriver(this, pin);
-  } else if (SELF_GRAVITY_ENABLED==3)
+  } else if (SELF_GRAVITY_ENABLED==3) {
+    gflag = 1; // set gravity flag
     pogrd = new OBCGravityDriver(this, pin);
+  }
 
   //  if (SELF_GRAVITY_ENABLED == 2 && ...) // independent allocation
   //    gflag=2;
@@ -1400,7 +1404,7 @@ void Mesh::Initialize(int res_flag, ParameterInput *pin) {
       // BoundaryVariable objects evolved in main TimeIntegratorTaskList:
       pmb->pbval->SetupPersistentMPI();
       // other BoundaryVariable objects:
-      if (SELF_GRAVITY_ENABLED == 1)
+      if ((SELF_GRAVITY_ENABLED == 1)||(SELF_GRAVITY_ENABLED == 3))
         pmb->pgrav->gbvar.SetupPersistentMPI();
     }
 

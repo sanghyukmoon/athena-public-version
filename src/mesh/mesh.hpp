@@ -198,6 +198,7 @@ class Mesh {
   friend class TurbulenceDriver;
   friend class MultigridDriver;
   friend class MGGravityDriver;
+  friend class OBCGravityDriver;
   friend class Gravity;
   friend class HydroDiffusion;
   friend class FieldDiffusion;

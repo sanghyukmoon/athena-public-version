@@ -15,6 +15,7 @@
 #include "../athena_arrays.hpp"
 #include "../mesh/mesh.hpp"
 #include "../mesh/meshblock_tree.hpp"
+#include "../task_list/fft_grav_task_list.hpp"
 #include "gravity.hpp"
 
 #include <iostream>
@@ -70,7 +71,7 @@ protected:
   Mesh *pmy_mesh_;
 
 private:
-//  GravitySolverTaskList *gtlist_;
+  FFTGravitySolverTaskList *gtlist_;
 };
 
 
