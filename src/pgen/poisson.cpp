@@ -116,10 +116,9 @@ void MeshBlock::ProblemGenerator(ParameterInput *pin) {
           if (r2 < SQR(rad)) {
             den = rho0;
             phia = -0.5*(four_pi_G)*rho0*(rad*rad - r2/3.);
-          }
-          else {
+          } else {
             den = 0.0;
-            phia = -(four_pi_G)*rad*rad*rad*rho0/3./sqrt(r2);
+            phia = -(four_pi_G)*rad*rad*rad*rho0/3./std::sqrt(r2);
           }
         }
 

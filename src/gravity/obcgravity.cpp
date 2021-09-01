@@ -11,122 +11,106 @@
 // Reference  : Moon, Kim, & Ostriker (2019), in press.
 // History    : Written by Sanghyuk Moon, Jan 2019.
 
-// C/C++ headers
+
+// C headers
+
+// C++ headers
+#include <algorithm>
+#include <cmath>
+#include <fstream>
+#include <iomanip>
 #include <iostream>   // endl
 #include <sstream>    // sstream
 #include <stdexcept>  // runtime_error
 #include <string>     // c_str()
-#include <cmath>
-#include <fstream>
-#include <iomanip>
-#include <fenv.h>
 
 // Athena++ headers
-#include "obcgravity.hpp"
 #include "../athena.hpp"
 #include "../athena_arrays.hpp"
-#include "../mesh/mesh.hpp"
 #include "../coordinates/coordinates.hpp"
-#include "../parameter_input.hpp"
 #include "../hydro/hydro.hpp"
-
-#ifdef MPI_PARALLEL
-#include <mpi.h>
-#endif
-
-#ifdef FFT
-#include "fftw3.h"
-#ifdef MPI_PARALLEL
-#include "../fft/plimpton/remap_3d.h"
-#include "../fft/plimpton/remap_2d.h"
-#include "../fft/plimpton/pack_3d.h"
-#include "../fft/plimpton/pack_2d.h"
-#endif
-#endif
+#include "../mesh/mesh.hpp"
+#include "../parameter_input.hpp"
+#include "obcgravity.hpp"
 
 #define MAX(A,B) ((A) > (B)) ? (A) : (B)
 
-OBCGravityDriver::OBCGravityDriver(Mesh *pm, ParameterInput *pin)
-{
+OBCGravityDriver::OBCGravityDriver(Mesh *pm, ParameterInput *pin) {
   pmy_mesh_ = pm;
 
-  if (COORDINATE_SYSTEM=="cartesian") {
-    for (int i=0;i<6;++i) {
+  if (std::strcmp(COORDINATE_SYSTEM, "cartesian") == 0) {
+    for (int i=0; i<6; ++i) {
       if (pmy_mesh_->mesh_bcs[i] == BoundaryFlag::periodic) {
         std::stringstream msg;
         msg << "### FATAL ERROR in OBCGravityDriver::OBCGravityDriver" << std::endl
             << "periodic BC is not allowed:" << std::endl
-            << "currently, setting periodic BC overwrites Phi at ghost zones" << std::endl;
-        throw std::runtime_error(msg.str().c_str());
+            << "currently, setting periodic BC overwrites Phi at ghost zones"
+            << std::endl;
+        ATHENA_ERROR(msg);
       }
     }
     pmy_og_car = new OBCGravityCar(this, pm->my_blocks(0), pin);
     pmy_og_cyl = NULL;
-  }
-  else if (COORDINATE_SYSTEM=="cylindrical") {
-    for (int i=0;i<2;++i) {
+  } else if (std::strcmp(COORDINATE_SYSTEM, "cylindrical") == 0) {
+    for (int i=0; i<2; ++i) {
       if (pmy_mesh_->mesh_bcs[i] == BoundaryFlag::periodic) {
         std::stringstream msg;
         msg << "### FATAL ERROR in OBCGravityDriver::OBCGravityDriver" << std::endl
             << "periodic BC is not allowed in the radial direction:" << std::endl
-            << "currently, setting periodic BC overwrites Phi at ghost zones" << std::endl;
-        throw std::runtime_error(msg.str().c_str());
+            << "currently, setting periodic BC overwrites Phi at ghost zones"
+            << std::endl;
+        ATHENA_ERROR(msg);
       }
     }
-    for (int i=2;i<4;++i) {
+    for (int i=2; i<4; ++i) {
       if (pmy_mesh_->mesh_bcs[i] != BoundaryFlag::periodic) {
         std::stringstream msg;
         msg << "### FATAL ERROR in OBCGravityDriver::OBCGravityDriver" << std::endl
-            << "periodic boundary condition is required for the azimuthal direction" << std::endl;
-        throw std::runtime_error(msg.str().c_str());
+            << "periodic boundary condition is required for the azimuthal direction"
+            << std::endl;
+        ATHENA_ERROR(msg);
       }
     }
-    for (int i=4;i<6;++i) {
+    for (int i=4; i<6; ++i) {
       if (pmy_mesh_->mesh_bcs[i] == BoundaryFlag::periodic) {
         std::stringstream msg;
         msg << "### FATAL ERROR in OBCGravityDriver::OBCGravityDriver" << std::endl
             << "periodic BC is not allowed in the vertical direction:" << std::endl
-            << "currently, setting periodic BC overwrites Phi at ghost zones" << std::endl;
-        throw std::runtime_error(msg.str().c_str());
+            << "currently, setting periodic BC overwrites Phi at ghost zones"
+            << std::endl;
+        ATHENA_ERROR(msg);
       }
     }
     pmy_og_car = NULL;
     pmy_og_cyl = new OBCGravityCyl(this, pm->my_blocks(0), pin);
-  }
-  else {
+  } else {
     std::stringstream msg;
     msg << "### FATAL ERROR in OBCGravityDriver::OBCGravityDriver" << std::endl
-         << "Currently, James solver only works in cartesian or cylindrical coordinates." << std::endl;
-    throw std::runtime_error(msg.str().c_str());
+         << "Currently, James solver only works in cartesian or cylindrical coordinates."
+         << std::endl;
+    ATHENA_ERROR(msg);
   }
   if (pmy_mesh_->nbtotal != Globals::nranks) {
     std::stringstream msg;
     msg << "### FATAL ERROR in OBCGravityDriver::OBCGravityDriver" << std::endl
-         << "Number of MeshBlocks should be equal to the number of processors" << std::endl;
-    throw std::runtime_error(msg.str().c_str());
+         << "Number of MeshBlocks should be equal to the number of processors"
+         << std::endl;
+    ATHENA_ERROR(msg);
   }
   gtlist_ = new FFTGravitySolverTaskList(pin, pm);
 }
 
 // destructor
-OBCGravityDriver::~OBCGravityDriver()
-{
-  if (COORDINATE_SYSTEM=="cartesian")
+OBCGravityDriver::~OBCGravityDriver() {
+  if (std::strcmp(COORDINATE_SYSTEM, "cartesian") == 0)
     delete pmy_og_car;
-  else if (COORDINATE_SYSTEM=="cylindrical")
+  else if (std::strcmp(COORDINATE_SYSTEM, "cylindrical") == 0)
     delete pmy_og_cyl;
-  else {
-    std::stringstream msg;
-    msg << "### FATAL ERROR in OBCGravityDriver::OBCGravityDriver" << std::endl
-         << "Currently, James solver only works in cartesian or cylindrical coordinates." << std::endl;
-    throw std::runtime_error(msg.str().c_str());
-  }
   delete gtlist_;
 }
 
-void OBCGravityDriver::Solve(int stage)
-{
-  if (COORDINATE_SYSTEM=="cartesian") {
+void OBCGravityDriver::Solve(int stage) {
+  if (std::strcmp(COORDINATE_SYSTEM, "cartesian") == 0) {
     MeshBlock *pmb=pmy_mesh_->my_blocks(0);
     pmy_og_car->LoadSource(pmb->phydro->u);
 
@@ -144,8 +128,7 @@ void OBCGravityDriver::Solve(int stage)
     pmy_og_car->SolveZeroBC();
     pmy_og_car->RetrieveResult(pmb->pgrav->phi);
     gtlist_->DoTaskListOneStage(pmy_mesh_, stage);
-  }
-  else if (COORDINATE_SYSTEM=="cylindrical") {
+  } else if (std::strcmp(COORDINATE_SYSTEM, "cylindrical") == 0) {
     MeshBlock *pmb=pmy_mesh_->my_blocks(0);
     pmy_og_cyl->LoadSource(pmb->phydro->u);
 
@@ -163,20 +146,19 @@ void OBCGravityDriver::Solve(int stage)
     pmy_og_cyl->SolveZeroBC();
     pmy_og_cyl->RetrieveResult(pmb->pgrav->phi);
     gtlist_->DoTaskListOneStage(pmy_mesh_, stage);
-  }
-  else {
+  } else {
     std::stringstream msg;
     msg << "### FATAL ERROR in OBCGravityDriver::OBCGravityDriver" << std::endl
-         << "Currently, James method only works in cartesian or cylindrical coordinates." << std::endl;
-    throw std::runtime_error(msg.str().c_str());
+         << "Currently, James method only works in cartesian or cylindrical coordinates."
+         << std::endl;
+    ATHENA_ERROR(msg);
   }
 }
 
 
 // OBCGravityCar constructor
 OBCGravityCar::OBCGravityCar(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInput *pin)
- : Gravity(pmb, pin)
-{
+  : Gravity(pmb, pin) {
   ngh_ = 1;
   /* The number of extra ghost cells for the DGF calculation */
   ngh_grf_ = 16;
@@ -205,7 +187,7 @@ OBCGravityCar::OBCGravityCar(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
   int ip1 = Globals::my_rank % np2d1; // ip1 is fast index
   int ip2 = Globals::my_rank / np2d1; // ip2 is slow index
 
-  for (int i=CXB;i<=CE3P;++i) {
+  for (int i=CXB; i<=CE3P; ++i) {
     dcmps[i].is = -1;
     dcmps[i].ie = -1;
     dcmps[i].js = -1;
@@ -354,7 +336,7 @@ OBCGravityCar::OBCGravityCar(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
   if (ip2==0) dcmps[CE3P].js -= ngh_+ngh_grf_;
   if (ip2==np2d2-1) dcmps[CE3P].je += ngh_;
 
-  for (int i=CXB;i<=CE3P;++i) {
+  for (int i=CXB; i<=CE3P; ++i) {
     dcmps[i].nx1 = dcmps[i].ie - dcmps[i].is + 1;
     dcmps[i].nx2 = dcmps[i].je - dcmps[i].js + 1;
     dcmps[i].nx3 = dcmps[i].ke - dcmps[i].ks + 1;
@@ -385,8 +367,8 @@ OBCGravityCar::OBCGravityCar(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
   MPI_Comm_rank(x2comm, &x2rank);
   MPI_Comm_rank(x3comm, &x3rank);
 
-  for (int i=STH;i<=CTOP;++i ) {
-    for (int j=CBLOCK;j<=FFT_SECOND;++j) {
+  for (int i=STH; i<=CTOP; ++i ) {
+    for (int j=CBLOCK; j<=FFT_SECOND; ++j) {
       bndry_dcmps[i][j].is = 0;
       bndry_dcmps[i][j].ie = -1;
       bndry_dcmps[i][j].js = 0;
@@ -565,12 +547,12 @@ OBCGravityCar::OBCGravityCar(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
     if (bndrank==bndsize-1) bndry_dcmps[CTOP][FFT_SECOND].ie+=ngh_;
   }
 
-  for (int i=STH;i<=CTOP;++i) {
-    for (int j=CBLOCK;j<=FFT_SECOND;++j) {
+  for (int i=STH; i<=CTOP; ++i) {
+    for (int j=CBLOCK; j<=FFT_SECOND; ++j) {
       bndry_dcmps[i][j].nx1 = bndry_dcmps[i][j].ie - bndry_dcmps[i][j].is + 1;
       bndry_dcmps[i][j].nx2 = bndry_dcmps[i][j].je - bndry_dcmps[i][j].js + 1;
       bndry_dcmps[i][j].nx3 = bndry_dcmps[i][j].ke - bndry_dcmps[i][j].ks + 1;
-      bndry_dcmps[i][j].block_size = 
+      bndry_dcmps[i][j].block_size =
         bndry_dcmps[i][j].nx1*bndry_dcmps[i][j].nx2*bndry_dcmps[i][j].nx3;
     }
   }
@@ -582,7 +564,7 @@ OBCGravityCar::OBCGravityCar(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
     msg << "### FATAL ERROR in OBCGravityCar" << std::endl
          << "domain decomposition failed in obcgrav" << std::endl
          << "np2d1 = " << np2d1 << " np2d2 = " << np2d2 << std::endl;
-    throw std::runtime_error(msg.str().c_str());
+    ATHENA_ERROR(msg);
   }
 
   // allocate arrays
@@ -599,11 +581,11 @@ OBCGravityCar::OBCGravityCar(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
   first_size = MAX(dcmps[PB].nx2*dcmps[PB].nx3, (Nx2+2*ngh_)*(Nx3/np2/np3+2*ngh_));
   second_size = MAX((Nx2+2*ngh_)*(Nx3/np2/np3+2*ngh_), (Nx3+2*ngh_)*(Nx2/np2/np3+2*ngh_));
   third_size = MAX((Nx3+2*ngh_)*(Nx2/np2/np3+2*ngh_), dcmps[PB].nx2*dcmps[PB].nx3);
-  for (int i=STH;i<=NTH;++i) {
+  for (int i=STH; i<=NTH; ++i) {
     sigma[i] = fftw_alloc_real(first_size);
-    for (int j=C;j<=S;++j) {
+    for (int j=C; j<=S; ++j) {
       sigma_mid[i][j] = fftw_alloc_real(second_size);
-      for (int k=C;k<=S;++k ) {
+      for (int k=C; k<=S; ++k ) {
         sigma_fft[i][j][k] = fftw_alloc_real(third_size);
       }
     }
@@ -611,11 +593,11 @@ OBCGravityCar::OBCGravityCar(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
   first_size = MAX(dcmps[PB].nx1*dcmps[PB].nx3, (Nx1+2*ngh_)*(Nx3/np3/np1+2*ngh_));
   second_size = MAX((Nx1+2*ngh_)*(Nx3/np3/np1+2*ngh_), (Nx3+2*ngh_)*(Nx1/np3/np1+2*ngh_));
   third_size = MAX((Nx3+2*ngh_)*(Nx1/np3/np1+2*ngh_), dcmps[PB].nx1*dcmps[PB].nx3);
-  for (int i=WST;i<=EST;++i) {
+  for (int i=WST; i<=EST; ++i) {
     sigma[i] = fftw_alloc_real(first_size);
-    for (int j=C;j<=S;++j) {
+    for (int j=C; j<=S; ++j) {
       sigma_mid[i][j] = fftw_alloc_real(second_size);
-      for (int k=C;k<=S;++k ) {
+      for (int k=C; k<=S; ++k ) {
         sigma_fft[i][j][k] = fftw_alloc_real(third_size);
       }
     }
@@ -623,18 +605,18 @@ OBCGravityCar::OBCGravityCar(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
   first_size = MAX(dcmps[PB].nx1*dcmps[PB].nx2, (Nx1+2*ngh_)*(Nx2/np1/np2+2*ngh_));
   second_size = MAX((Nx1+2*ngh_)*(Nx2/np1/np2+2*ngh_), (Nx2+2*ngh_)*(Nx1/np1/np2+2*ngh_));
   third_size = MAX((Nx2+2*ngh_)*(Nx1/np1/np2+2*ngh_), dcmps[PB].nx1*dcmps[PB].nx2);
-  for (int i=CBOT;i<=CTOP;++i) {
+  for (int i=CBOT; i<=CTOP; ++i) {
     sigma[i] = fftw_alloc_real(first_size);
-    for (int j=C;j<=S;++j) {
+    for (int j=C; j<=S; ++j) {
       sigma_mid[i][j] = fftw_alloc_real(second_size);
-      for (int k=C;k<=S;++k ) {
+      for (int k=C; k<=S; ++k ) {
         sigma_fft[i][j][k] = fftw_alloc_real(third_size);
       }
     }
   }
-  for (int i=C;i<=S;++i) {
-    for (int j=C;j<=S;++j) {
-      for (int k=C;k<=S;++k) {
+  for (int i=C; i<=S; ++i) {
+    for (int j=C; j<=S; ++j) {
+      for (int k=C; k<=S; ++k) {
         sigfft[i][j][k] = fftw_alloc_real(dcmps[PB].block_size);
       }
     }
@@ -651,23 +633,29 @@ OBCGravityCar::OBCGravityCar(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
   lambda22_.NewAthenaArray(dcmps[CE1P].nx2);
   lambda11_.NewAthenaArray(dcmps[CE1P].nx1);
 
-  for (int k=0;k<dcmps[CX1P].nx3;++k) {
-    lambda3_(k) = -4*SQR(sin(0.5*PI*(Real)(dcmps[CX1P].ks+k+1)/((Real)((Nx3)+1))))/SQR(dx3_);
+  for (int k=0; k<dcmps[CX1P].nx3; ++k) {
+    lambda3_(k) = -4*SQR(sin(0.5*PI*(Real)(dcmps[CX1P].ks+k+1)/((Real)((Nx3)+1))))
+      / SQR(dx3_);
   }
-  for (int j=0;j<dcmps[CX1P].nx2;++j) {
-    lambda2_(j) = -4*SQR(sin(0.5*PI*(Real)(dcmps[CX1P].js+j+1)/((Real)((Nx2)+1))))/SQR(dx2_);
+  for (int j=0; j<dcmps[CX1P].nx2; ++j) {
+    lambda2_(j) = -4*SQR(sin(0.5*PI*(Real)(dcmps[CX1P].js+j+1)/((Real)((Nx2)+1))))
+      / SQR(dx2_);
   }
-  for (int i=0;i<dcmps[CX1P].nx1;++i) {
-    lambda1_(i) = -4*SQR(sin(0.5*PI*(Real)(dcmps[CX1P].is+i+1)/((Real)((Nx1)+1))))/SQR(dx1_);
+  for (int i=0; i<dcmps[CX1P].nx1; ++i) {
+    lambda1_(i) = -4*SQR(sin(0.5*PI*(Real)(dcmps[CX1P].is+i+1)/((Real)((Nx1)+1))))
+      / SQR(dx1_);
   }
-  for (int k=0;k<dcmps[CE1P].nx3;++k) {
-    lambda33_(k) = -4*SQR(sin(0.5*PI*(Real)(dcmps[CE1P].ks+k+1)/((Real)((Nx3+2*ngh_+ngh_grf_)+1))))/SQR(dx3_);
+  for (int k=0; k<dcmps[CE1P].nx3; ++k) {
+    lambda33_(k) = -4*SQR(sin(0.5*PI*(Real)(dcmps[CE1P].ks+k+1)
+          / ((Real)((Nx3+2*ngh_+ngh_grf_)+1)))) / SQR(dx3_);
   }
-  for (int j=0;j<dcmps[CE1P].nx2;++j) {
-    lambda22_(j) = -4*SQR(sin(0.5*PI*(Real)(dcmps[CE1P].js+j+1)/((Real)((Nx2+2*ngh_+ngh_grf_)+1))))/SQR(dx2_);
+  for (int j=0; j<dcmps[CE1P].nx2; ++j) {
+    lambda22_(j) = -4*SQR(sin(0.5*PI*(Real)(dcmps[CE1P].js+j+1)
+          / ((Real)((Nx2+2*ngh_+ngh_grf_)+1)))) / SQR(dx2_);
   }
-  for (int i=0;i<dcmps[CE1P].nx1;++i) {
-    lambda11_(i) = -4*SQR(sin(0.5*PI*(Real)(dcmps[CE1P].is+i+1)/((Real)((Nx1+2*ngh_+ngh_grf_)+1))))/SQR(dx1_);
+  for (int i=0; i<dcmps[CE1P].nx1; ++i) {
+    lambda11_(i) = -4*SQR(sin(0.5*PI*(Real)(dcmps[CE1P].is+i+1)
+          / ((Real)((Nx1+2*ngh_+ngh_grf_)+1)))) / SQR(dx1_);
   }
 
   fftw_r2r_kind DST[] = {FFTW_RODFT00};
@@ -796,7 +784,7 @@ OBCGravityCar::OBCGravityCar(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
     dcmps[CE2P].ie, dcmps[CEB].js, dcmps[CEB].je, dcmps[CEB].ks, dcmps[CEB].ke,
     dcmps[CEB].is, dcmps[CEB].ie, 1, 2, 0, 2);
 
-  for (int i=STH;i<=NTH;++i) {
+  for (int i=STH; i<=NTH; ++i) {
     BndryRmpPlan[i][CBLOCK][FFT_FIRST] = remap_2d_create_plan(MPI_COMM_WORLD,
       bndry_dcmps[i][CBLOCK].js, bndry_dcmps[i][CBLOCK].je,
       bndry_dcmps[i][CBLOCK].ks, bndry_dcmps[i][CBLOCK].ke,
@@ -878,7 +866,7 @@ OBCGravityCar::OBCGravityCar(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
       sigma_fft[i][S][S]+1, NULL, 1, Nx3C,
       sigma_fft[i][S][S]+1, NULL, 1, Nx3C, DST, FFTW_MEASURE);
   }
-  for (int i=WST;i<=EST;++i) {
+  for (int i=WST; i<=EST; ++i) {
     BndryRmpPlan[i][CBLOCK][FFT_FIRST] = remap_2d_create_plan(MPI_COMM_WORLD,
       bndry_dcmps[i][CBLOCK].is, bndry_dcmps[i][CBLOCK].ie,
       bndry_dcmps[i][CBLOCK].ks, bndry_dcmps[i][CBLOCK].ke,
@@ -960,7 +948,7 @@ OBCGravityCar::OBCGravityCar(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
       sigma_fft[i][S][S]+1, NULL, 1, Nx3C,
       sigma_fft[i][S][S]+1, NULL, 1, Nx3C, DST, FFTW_MEASURE);
   }
-  for (int i=CBOT;i<=CTOP;++i) {
+  for (int i=CBOT; i<=CTOP; ++i) {
     BndryRmpPlan[i][CBLOCK][FFT_FIRST] = remap_2d_create_plan(MPI_COMM_WORLD,
       bndry_dcmps[i][CBLOCK].is, bndry_dcmps[i][CBLOCK].ie,
       bndry_dcmps[i][CBLOCK].js, bndry_dcmps[i][CBLOCK].je,
@@ -1047,20 +1035,19 @@ OBCGravityCar::OBCGravityCar(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
 }
 
 // OBCGravityCar destructor
-OBCGravityCar::~OBCGravityCar()
-{
-  for (int i=STH;i<=CTOP;++i) {
+OBCGravityCar::~OBCGravityCar() {
+  for (int i=STH; i<=CTOP; ++i) {
     fftw_free(sigma[i]);
-    for (int j=C;j<=S;++j) {
+    for (int j=C; j<=S; ++j) {
       fftw_free(sigma_mid[i][j]);
-      for (int k=C;k<=S;++k ) {
+      for (int k=C; k<=S; ++k ) {
         fftw_free(sigma_fft[i][j][k]);
       }
     }
   }
-  for (int i=C;i<=S;++i) {
-    for (int j=C;j<=S;++j) {
-      for (int k=C;k<=S;++k) {
+  for (int i=C; i<=S; ++i) {
+    for (int j=C; j<=S; ++j) {
+      for (int k=C; k<=S; ++k) {
         fftw_free(sigfft[i][j][k]);
       }
     }
@@ -1072,7 +1059,7 @@ OBCGravityCar::~OBCGravityCar()
   lambda11_.DeleteAthenaArray();
   lambda22_.DeleteAthenaArray();
   lambda33_.DeleteAthenaArray();
-  for (int i=0;i<15;++i) fftw_destroy_plan(fft_plan_r2r_[i]);
+  for (int i=0; i<15; ++i) fftw_destroy_plan(fft_plan_r2r_[i]);
   fftw_free(in_);
   fftw_free(in2_);
   fftw_free(out_);
@@ -1097,15 +1084,15 @@ OBCGravityCar::~OBCGravityCar()
   remap_3d_destroy_plan(RmpPlan[CE2P][CEB]);
 
 
-  for (int i=STH;i<=CTOP;++i) {
+  for (int i=STH; i<=CTOP; ++i) {
     remap_2d_destroy_plan(BndryRmpPlan[i][CBLOCK][FFT_FIRST]);
     remap_2d_destroy_plan(BndryRmpPlan[i][FFT_FIRST][FFT_SECOND]);
     remap_2d_destroy_plan(BndryRmpPlan[i][FFT_SECOND][CBLOCK]);
-    for (int j=0;j<14;++j) {
+    for (int j=0; j<14; ++j) {
       fftw_destroy_plan(fft_2d_plan[i][j]);
     }
   }
-  for (int i=STH;i<=CTOP;++i) {
+  for (int i=STH; i<=CTOP; ++i) {
     if (bndcomm[i] != MPI_COMM_NULL) {
       MPI_Comm_free(&(bndcomm[i]));
     }
@@ -1115,13 +1102,14 @@ OBCGravityCar::~OBCGravityCar()
   MPI_Comm_free(&x3comm);
 }
 
-void OBCGravityCar::BndFFTBackward(int first_nslow, int first_nfast, int second_nslow, int second_nfast, int B)
-{
-  for (int p1=C;p1<=S;++p1) {
-    for (int p2=C;p2<=S;++p2) {
-      remap_2d(sigma_fft[B][p1][p2], sigma_fft[B][p1][p2], buf_, BndryRmpPlan[B][CBLOCK][FFT_FIRST]);
-      for (int k=0;k<first_nslow;++k) {
-        for (int j=1;j<first_nfast-1;++j) {
+void OBCGravityCar::BndFFTBackward(
+    int first_nslow, int first_nfast, int second_nslow, int second_nfast, int B) {
+  for (int p1=C; p1<=S; ++p1) {
+    for (int p2=C; p2<=S; ++p2) {
+      remap_2d(sigma_fft[B][p1][p2], sigma_fft[B][p1][p2], buf_,
+          BndryRmpPlan[B][CBLOCK][FFT_FIRST]);
+      for (int k=0; k<first_nslow; ++k) {
+        for (int j=1; j<first_nfast-1; ++j) {
           int idx = j + first_nfast*k;
           sigma_fft[B][p1][p2][idx] *= 0.5;
         }
@@ -1132,11 +1120,12 @@ void OBCGravityCar::BndFFTBackward(int first_nslow, int first_nfast, int second_
   fftw_execute(fft_2d_plan[B][7]);
   fftw_execute(fft_2d_plan[B][8]);
   fftw_execute(fft_2d_plan[B][9]);
-  for (int p1=C;p1<=S;++p1) {
-    for (int p2=C;p2<=S;++p2) {
-      remap_2d(sigma_fft[B][p1][p2], sigma_fft[B][p1][p2], buf_, BndryRmpPlan[B][FFT_FIRST][FFT_SECOND]);
-      for (int j=0;j<second_nslow;++j) {
-        for (int k=1;k<second_nfast-1;++k) {
+  for (int p1=C; p1<=S; ++p1) {
+    for (int p2=C; p2<=S; ++p2) {
+      remap_2d(sigma_fft[B][p1][p2], sigma_fft[B][p1][p2], buf_,
+          BndryRmpPlan[B][FFT_FIRST][FFT_SECOND]);
+      for (int j=0; j<second_nslow; ++j) {
+        for (int k=1; k<second_nfast-1; ++k) {
           int idx = k + second_nfast*j;
           sigma_fft[B][p1][p2][idx] *= 0.5;
         }
@@ -1147,35 +1136,37 @@ void OBCGravityCar::BndFFTBackward(int first_nslow, int first_nfast, int second_
   fftw_execute(fft_2d_plan[B][11]);
   fftw_execute(fft_2d_plan[B][12]);
   fftw_execute(fft_2d_plan[B][13]);
-  for (int p1=C;p1<=S;++p1) {
-    for (int p2=C;p2<=S;++p2) {
-      remap_2d(sigma_fft[B][p1][p2], sigma_fft[B][p1][p2], buf_, BndryRmpPlan[B][FFT_SECOND][CBLOCK]);
+  for (int p1=C; p1<=S; ++p1) {
+    for (int p2=C; p2<=S; ++p2) {
+      remap_2d(sigma_fft[B][p1][p2], sigma_fft[B][p1][p2], buf_,
+          BndryRmpPlan[B][FFT_SECOND][CBLOCK]);
     }
   }
 }
 
 
-void OBCGravityCar::BndFFTForward(int first_nslow, int first_nfast, int second_nslow, int second_nfast, int B)
-{
+void OBCGravityCar::BndFFTForward(
+    int first_nslow, int first_nfast, int second_nslow, int second_nfast, int B) {
   remap_2d(sigma[B], sigma[B], buf_, BndryRmpPlan[B][CBLOCK][FFT_FIRST]);
-  for (int k=0;k<first_nslow;++k) {
-    for (int j=1;j<first_nfast-1;++j) {
+  for (int k=0; k<first_nslow; ++k) {
+    for (int j=1; j<first_nfast-1; ++j) {
       int idx = j + first_nfast*k;
       sigma[B][idx] *= 0.5;
     }
   }
   fftw_execute(fft_2d_plan[B][0]);
   fftw_execute(fft_2d_plan[B][1]);
-  for (int k=0;k<first_nslow;++k) {
+  for (int k=0; k<first_nslow; ++k) {
     int idx1 = 0       + first_nfast*k;
     int idx2 = first_nfast-1 + first_nfast*k;
     sigma_mid[B][S][idx1] = 0;
     sigma_mid[B][S][idx2] = 0;
   }
-  for (int p1=C;p1<=S;++p1) {
-    remap_2d(sigma_mid[B][p1], sigma_mid[B][p1], buf_, BndryRmpPlan[B][FFT_FIRST][FFT_SECOND]);
-    for (int j=0;j<second_nslow;++j) {
-      for (int k=1;k<second_nfast-1;++k) {
+  for (int p1=C; p1<=S; ++p1) {
+    remap_2d(sigma_mid[B][p1], sigma_mid[B][p1], buf_,
+        BndryRmpPlan[B][FFT_FIRST][FFT_SECOND]);
+    for (int j=0; j<second_nslow; ++j) {
+      for (int k=1; k<second_nfast-1; ++k) {
         int idx = k + second_nfast*j;
         sigma_mid[B][p1][idx] *= 0.5;
       }
@@ -1185,21 +1176,21 @@ void OBCGravityCar::BndFFTForward(int first_nslow, int first_nfast, int second_n
   fftw_execute(fft_2d_plan[B][3]);
   fftw_execute(fft_2d_plan[B][4]);
   fftw_execute(fft_2d_plan[B][5]);
-  for (int p1=C;p1<=S;++p1) {
-    for (int j=0;j<second_nslow;++j) {
+  for (int p1=C; p1<=S; ++p1) {
+    for (int j=0; j<second_nslow; ++j) {
       int idx1 = 0       + second_nfast*j;
       int idx2 = second_nfast-1 + second_nfast*j;
       sigma_fft[B][p1][S][idx1] = 0;
       sigma_fft[B][p1][S][idx2] = 0;
     }
-    for (int p2=C;p2<=S;++p2) {
-      remap_2d(sigma_fft[B][p1][p2], sigma_fft[B][p1][p2], buf_, BndryRmpPlan[B][FFT_SECOND][CBLOCK]);
+    for (int p2=C; p2<=S; ++p2) {
+      remap_2d(sigma_fft[B][p1][p2], sigma_fft[B][p1][p2], buf_,
+          BndryRmpPlan[B][FFT_SECOND][CBLOCK]);
     }
   }
 }
 
-void OBCGravityCar::FillDscGrf()
-{
+void OBCGravityCar::FillDscGrf() {
   std::cout << "Populating discrete Green's function..." << std::endl;
   Real x,y,z,rds,vol,psi,normfac;
   vol = dx1_*dx2_*dx3_;
@@ -1211,26 +1202,25 @@ void OBCGravityCar::FillDscGrf()
   if (dcmps[CXB].ks == 0) kshift=ngh_grf_;
 
   // Add point charge
-  for (int k=0;k<dcmps[CEB].nx3;++k) {
-    for (int j=0;j<dcmps[CEB].nx2;++j) {
-      for (int i=0;i<dcmps[CEB].nx1;++i) {
+  for (int k=0; k<dcmps[CEB].nx3; ++k) {
+    for (int j=0; j<dcmps[CEB].nx2; ++j) {
+      for (int i=0; i<dcmps[CEB].nx1; ++i) {
         int idx = i + dcmps[CEB].nx1*(j + dcmps[CEB].nx2*k);
         int gi = dcmps[CEB].is + i;
         int gj = dcmps[CEB].js + j;
         int gk = dcmps[CEB].ks + k;
         if ((gi==ngh_grf_)&&(gj==ngh_grf_)&&(gk==ngh_grf_)) {
           in2_[idx] = 1.0;
-        }
-        else {
+        } else {
           in2_[idx] = 0.0;
         }
       }
     }
   }
   // Add boundary charge
-  for (int k=0;k<dcmps[CEB].nx3;++k) {
+  for (int k=0; k<dcmps[CEB].nx3; ++k) {
     int gk = dcmps[CEB].ks + k;
-    for (int j=0;j<dcmps[CEB].nx2;++j) {
+    for (int j=0; j<dcmps[CEB].nx2; ++j) {
       int gj = dcmps[CEB].js + j;
       if (dcmps[CXB].is == 0) {
         int i = 0;
@@ -1239,7 +1229,7 @@ void OBCGravityCar::FillDscGrf()
         x = (gi-ngh_grf_)*dx1_;
         y = (gj-ngh_grf_)*dx2_;
         z = (gk-ngh_grf_)*dx3_;
-        rds = sqrt(x*x+y*y+z*z);
+        rds = std::sqrt(x*x+y*y+z*z);
         psi = -(four_pi_G/4.0/PI)*vol/rds;
         in2_[idx] -= psi/four_pi_G/SQR(dx1_);
       }
@@ -1250,15 +1240,15 @@ void OBCGravityCar::FillDscGrf()
         x = (gi-ngh_grf_)*dx1_;
         y = (gj-ngh_grf_)*dx2_;
         z = (gk-ngh_grf_)*dx3_;
-        rds = sqrt(x*x+y*y+z*z);
+        rds = std::sqrt(x*x+y*y+z*z);
         psi = -(four_pi_G/4.0/PI)*vol/rds;
         in2_[idx] -= psi/four_pi_G/SQR(dx1_);
       }
     }
   }
-  for (int k=0;k<dcmps[CEB].nx3;++k) {
+  for (int k=0; k<dcmps[CEB].nx3; ++k) {
     int gk = dcmps[CEB].ks + k;
-    for (int i=0;i<dcmps[CEB].nx1;++i) {
+    for (int i=0; i<dcmps[CEB].nx1; ++i) {
       int gi = dcmps[CEB].is + i;
       if (dcmps[CXB].js == 0) {
         int j = 0;
@@ -1267,7 +1257,7 @@ void OBCGravityCar::FillDscGrf()
         x = (gi-ngh_grf_)*dx1_;
         y = (gj-ngh_grf_)*dx2_;
         z = (gk-ngh_grf_)*dx3_;
-        rds = sqrt(x*x+y*y+z*z);
+        rds = std::sqrt(x*x+y*y+z*z);
         psi = -(four_pi_G/4.0/PI)*vol/rds;
         in2_[idx] -= psi/four_pi_G/SQR(dx2_);
       }
@@ -1278,15 +1268,15 @@ void OBCGravityCar::FillDscGrf()
         x = (gi-ngh_grf_)*dx1_;
         y = (gj-ngh_grf_)*dx2_;
         z = (gk-ngh_grf_)*dx3_;
-        rds = sqrt(x*x+y*y+z*z);
+        rds = std::sqrt(x*x+y*y+z*z);
         psi = -(four_pi_G/4.0/PI)*vol/rds;
         in2_[idx] -= psi/four_pi_G/SQR(dx2_);
       }
     }
   }
-  for (int j=0;j<dcmps[CEB].nx2;++j) {
+  for (int j=0; j<dcmps[CEB].nx2; ++j) {
     int gj = dcmps[CEB].js + j;
-    for (int i=0;i<dcmps[CEB].nx1;++i) {
+    for (int i=0; i<dcmps[CEB].nx1; ++i) {
       int gi = dcmps[CEB].is + i;
       if (dcmps[CXB].ks == 0) {
         int k = 0;
@@ -1295,7 +1285,7 @@ void OBCGravityCar::FillDscGrf()
         x = (gi-ngh_grf_)*dx1_;
         y = (gj-ngh_grf_)*dx2_;
         z = (gk-ngh_grf_)*dx3_;
-        rds = sqrt(x*x+y*y+z*z);
+        rds = std::sqrt(x*x+y*y+z*z);
         psi = -(four_pi_G/4.0/PI)*vol/rds;
         in2_[idx] -= psi/four_pi_G/SQR(dx3_);
       }
@@ -1306,7 +1296,7 @@ void OBCGravityCar::FillDscGrf()
         x = (gi-ngh_grf_)*dx1_;
         y = (gj-ngh_grf_)*dx2_;
         z = (gk-ngh_grf_)*dx3_;
-        rds = sqrt(x*x+y*y+z*z);
+        rds = std::sqrt(x*x+y*y+z*z);
         psi = -(four_pi_G/4.0/PI)*vol/rds;
         in2_[idx] -= psi/four_pi_G/SQR(dx3_);
       }
@@ -1320,9 +1310,9 @@ void OBCGravityCar::FillDscGrf()
   remap_3d(in2_, in2_, buf_, RmpPlan[CE3P][CE1P]);
   fftw_execute(fft_plan_r2r_[11]);
   /* apply kernel */
-  for (int k=0;k<dcmps[CE1P].nx3;++k) {
-    for (int j=0;j<dcmps[CE1P].nx2;++j) {
-      for (int i=0;i<dcmps[CE1P].nx1;++i) {
+  for (int k=0; k<dcmps[CE1P].nx3; ++k) {
+    for (int j=0; j<dcmps[CE1P].nx2; ++j) {
+      for (int i=0; i<dcmps[CE1P].nx1; ++i) {
         int idx = i + dcmps[CE1P].nx1*(j + dcmps[CE1P].nx2*k);
         in2_[idx] *= four_pi_G/(lambda11_(i)+lambda22_(j)+lambda33_(k));
       }
@@ -1334,10 +1324,11 @@ void OBCGravityCar::FillDscGrf()
   remap_3d(in2_, in2_, buf_, RmpPlan[CE3P][CE2P]);
   fftw_execute(fft_plan_r2r_[14]);
   remap_3d(in2_, in2_, buf_, RmpPlan[CE2P][CEB]);
-  normfac = 1.0 / (2*(Nx3+1+2*ngh_+ngh_grf_)) / (2*(Nx2+1+2*ngh_+ngh_grf_)) / (2*(Nx1+1+2*ngh_+ngh_grf_));
-  for (int k=0;k<dcmps[PB].nx3;++k) {
-    for (int j=0;j<dcmps[PB].nx2;++j) {
-      for (int i=0;i<dcmps[PB].nx1;++i) {
+  normfac = 1.0 / (2*(Nx3+1+2*ngh_+ngh_grf_)) / (2*(Nx2+1+2*ngh_+ngh_grf_))
+    / (2*(Nx1+1+2*ngh_+ngh_grf_));
+  for (int k=0; k<dcmps[PB].nx3; ++k) {
+    for (int j=0; j<dcmps[PB].nx2; ++j) {
+      for (int i=0; i<dcmps[PB].nx1; ++i) {
         int idx = i + dcmps[PB].nx1*(j + dcmps[PB].nx2*k);
         int idx2 = (i+ishift) + dcmps[CEB].nx1*((j+jshift) + dcmps[CEB].nx2*(k+kshift));
         grf[idx] = in2_[idx2]*normfac;
@@ -1346,8 +1337,8 @@ void OBCGravityCar::FillDscGrf()
   }
   remap_3d(grf, grf, buf_, RmpPlan[PB][P2P]);
   fftw_execute(fft_plan_r2r_[6]);
-  for (int i=0;i<dcmps[P2P].nx1;++i) {
-    for (int k=0;k<dcmps[P2P].nx3;++k) {
+  for (int i=0; i<dcmps[P2P].nx1; ++i) {
+    for (int k=0; k<dcmps[P2P].nx3; ++k) {
       int idx = 0 + dcmps[P2P].nx2*(k + dcmps[P2P].nx3*i);
       grf[idx] *= 0.5;
       idx = dcmps[P2P].nx2-1 + dcmps[P2P].nx2*(k + dcmps[P2P].nx3*i);
@@ -1356,8 +1347,8 @@ void OBCGravityCar::FillDscGrf()
   }
   remap_3d(grf, grf, buf_, RmpPlan[P2P][P3P]);
   fftw_execute(fft_plan_r2r_[7]);
-  for (int j=0;j<dcmps[P3P].nx2;++j) {
-    for (int i=0;i<dcmps[P3P].nx1;++i) {
+  for (int j=0; j<dcmps[P3P].nx2; ++j) {
+    for (int i=0; i<dcmps[P3P].nx1; ++i) {
       int idx = 0 + dcmps[P3P].nx3*(i + dcmps[P3P].nx1*j);
       grf[idx] *= 0.5;
       idx = dcmps[P3P].nx3-1 + dcmps[P3P].nx3*(i + dcmps[P3P].nx1*j);
@@ -1366,8 +1357,8 @@ void OBCGravityCar::FillDscGrf()
   }
   remap_3d(grf, grf, buf_, RmpPlan[P3P][P1P]);
   fftw_execute(fft_plan_r2r_[8]);
-  for (int k=0;k<dcmps[P1P].nx3;++k) {
-    for (int j=0;j<dcmps[P1P].nx2;++j) {
+  for (int k=0; k<dcmps[P1P].nx3; ++k) {
+    for (int j=0; j<dcmps[P1P].nx2; ++j) {
       int idx = 0 + dcmps[P1P].nx1*(j + dcmps[P1P].nx2*k);
       grf[idx] *= 0.5;
       idx = dcmps[P1P].nx1-1 + dcmps[P1P].nx1*(j + dcmps[P1P].nx2*k);
@@ -1378,9 +1369,9 @@ void OBCGravityCar::FillDscGrf()
   remap_3d(grf, grf, buf_, RmpPlan[P3P][P2P]);
   remap_3d(grf, grf, buf_, RmpPlan[P2P][PB]);
   normfac = 1.0 / (Nx1-1+2*ngh_) / (Nx2-1+2*ngh_) / (Nx3-1+2*ngh_);
-  for (int k=0;k<dcmps[PB].nx3;++k) {
-    for (int j=0;j<dcmps[PB].nx2;++j) {
-      for (int i=0;i<dcmps[PB].nx1;++i) {
+  for (int k=0; k<dcmps[PB].nx3; ++k) {
+    for (int j=0; j<dcmps[PB].nx2; ++j) {
+      for (int i=0; i<dcmps[PB].nx1; ++i) {
         int idx = i + dcmps[PB].nx1*(j + dcmps[PB].nx2*k);
         grf[idx] *= normfac;
       }
@@ -1389,8 +1380,7 @@ void OBCGravityCar::FillDscGrf()
   std::cout << "FillDscGrf is done" << std::endl;
 }
 
-void OBCGravityCar::FillCntGrf()
-{
+void OBCGravityCar::FillCntGrf() {
   std::cout << "Populating continuous Green's function..." << std::endl;
   Coordinates *pcoord = pmy_block->pcoord;
   Real x,y,z,rds,vol;
@@ -1398,9 +1388,9 @@ void OBCGravityCar::FillCntGrf()
 
   vol = dx1_*dx2_*dx3_;
 
-  for (int k=0;k<dcmps[PB].nx3;++k) {
-    for (int j=0;j<dcmps[PB].nx2;++j) {
-      for (int i=0;i<dcmps[PB].nx1;++i) {
+  for (int k=0; k<dcmps[PB].nx3; ++k) {
+    for (int j=0; j<dcmps[PB].nx2; ++j) {
+      for (int i=0; i<dcmps[PB].nx1; ++i) {
         int idx = i + dcmps[PB].nx1*(j + dcmps[PB].nx2*k);
         gi = dcmps[PB].is + i;
         gj = dcmps[PB].js + j;
@@ -1408,11 +1398,10 @@ void OBCGravityCar::FillCntGrf()
         x = gi*dx1_;
         y = gj*dx2_;
         z = gk*dx3_;
-        rds = sqrt(x*x+y*y+z*z);
+        rds = std::sqrt(x*x+y*y+z*z);
         if ((gi==0)&&(gj==0)&&(gk==0)) {
           grf[idx] = 0;
-        }
-        else {
+        } else {
           grf[idx] = -(four_pi_G/4.0/PI)*vol/rds;
         }
       }
@@ -1420,8 +1409,8 @@ void OBCGravityCar::FillCntGrf()
   }
   remap_3d(grf, grf, buf_, RmpPlan[PB][P2P]);
   fftw_execute(fft_plan_r2r_[6]);
-  for (int i=0;i<dcmps[P2P].nx1;++i) {
-    for (int k=0;k<dcmps[P2P].nx3;++k) {
+  for (int i=0; i<dcmps[P2P].nx1; ++i) {
+    for (int k=0; k<dcmps[P2P].nx3; ++k) {
       int idx = 0 + dcmps[P2P].nx2*(k + dcmps[P2P].nx3*i);
       grf[idx] *= 0.5;
       idx = dcmps[P2P].nx2-1 + dcmps[P2P].nx2*(k + dcmps[P2P].nx3*i);
@@ -1430,8 +1419,8 @@ void OBCGravityCar::FillCntGrf()
   }
   remap_3d(grf, grf, buf_, RmpPlan[P2P][P3P]);
   fftw_execute(fft_plan_r2r_[7]);
-  for (int j=0;j<dcmps[P3P].nx2;++j) {
-    for (int i=0;i<dcmps[P3P].nx1;++i) {
+  for (int j=0; j<dcmps[P3P].nx2; ++j) {
+    for (int i=0; i<dcmps[P3P].nx1; ++i) {
       int idx = 0 + dcmps[P3P].nx3*(i + dcmps[P3P].nx1*j);
       grf[idx] *= 0.5;
       idx = dcmps[P3P].nx3-1 + dcmps[P3P].nx3*(i + dcmps[P3P].nx1*j);
@@ -1440,8 +1429,8 @@ void OBCGravityCar::FillCntGrf()
   }
   remap_3d(grf, grf, buf_, RmpPlan[P3P][P1P]);
   fftw_execute(fft_plan_r2r_[8]);
-  for (int k=0;k<dcmps[P1P].nx3;++k) {
-    for (int j=0;j<dcmps[P1P].nx2;++j) {
+  for (int k=0; k<dcmps[P1P].nx3; ++k) {
+    for (int j=0; j<dcmps[P1P].nx2; ++j) {
       int idx = 0 + dcmps[P1P].nx1*(j + dcmps[P1P].nx2*k);
       grf[idx] *= 0.5;
       idx = dcmps[P1P].nx1-1 + dcmps[P1P].nx1*(j + dcmps[P1P].nx2*k);
@@ -1452,9 +1441,9 @@ void OBCGravityCar::FillCntGrf()
   remap_3d(grf, grf, buf_, RmpPlan[P3P][P2P]);
   remap_3d(grf, grf, buf_, RmpPlan[P2P][PB]);
   Real normfac = 1.0 / (Nx1-1+2*ngh_) / (Nx2-1+2*ngh_) / (Nx3-1+2*ngh_);
-  for (int k=0;k<dcmps[PB].nx3;++k) {
-    for (int j=0;j<dcmps[PB].nx2;++j) {
-      for (int i=0;i<dcmps[PB].nx1;++i) {
+  for (int k=0; k<dcmps[PB].nx3; ++k) {
+    for (int j=0; j<dcmps[PB].nx2; ++j) {
+      for (int i=0; i<dcmps[PB].nx1; ++i) {
         int idx = i + dcmps[PB].nx1*(j + dcmps[PB].nx2*k);
         grf[idx] *= normfac;
       }
@@ -1463,15 +1452,14 @@ void OBCGravityCar::FillCntGrf()
   std::cout << "FillCntGrf is done" << std::endl;
 }
 
-void OBCGravityCar::LoadSource(const AthenaArray<Real> &src)
-{
+void OBCGravityCar::LoadSource(const AthenaArray<Real> &src) {
   int is, ie, js, je, ks, ke;
   int idx;
   is = pmy_block->is; js = pmy_block->js; ks = pmy_block->ks;
   ie = pmy_block->ie; je = pmy_block->je; ke = pmy_block->ke;
-  for (int k=ks;k<=ke;++k) {
-    for (int j=js;j<=je;++j) {
-      for (int i=is;i<=ie;++i) {
+  for (int k=ks; k<=ke; ++k) {
+    for (int j=js; j<=je; ++j) {
+      for (int i=is; i<=ie; ++i) {
         idx = (i-is) + nx1*((j-js) + nx2*(k-ks));
         in_[idx] = src(IDN,k,j,i);
       }
@@ -1479,8 +1467,7 @@ void OBCGravityCar::LoadSource(const AthenaArray<Real> &src)
   }
 }
 
-void OBCGravityCar::SolveZeroBC()
-{
+void OBCGravityCar::SolveZeroBC() {
   remap_3d(in_, in_, buf_, RmpPlan[CXB][CX2P]);
   fftw_execute(fft_plan_r2r_[0]);
   remap_3d(in_, in_, buf_, RmpPlan[CX2P][CX3P]);
@@ -1489,9 +1476,9 @@ void OBCGravityCar::SolveZeroBC()
   fftw_execute(fft_plan_r2r_[2]);
   /* apply kernel */
   int idx;
-  for (int k=0;k<dcmps[CX1P].nx3;++k) {
-    for (int j=0;j<dcmps[CX1P].nx2;++j) {
-      for (int i=0;i<dcmps[CX1P].nx1;++i) {
+  for (int k=0; k<dcmps[CX1P].nx3; ++k) {
+    for (int j=0; j<dcmps[CX1P].nx2; ++j) {
+      for (int i=0; i<dcmps[CX1P].nx1; ++i) {
         idx = i + dcmps[CX1P].nx1*(j + dcmps[CX1P].nx2*k);
         out_[idx] = four_pi_G*in_[idx]/(lambda1_(i)+lambda2_(j)+lambda3_(k));
       }
@@ -1507,9 +1494,9 @@ void OBCGravityCar::SolveZeroBC()
   is = pmy_block->is; js = pmy_block->js; ks = pmy_block->ks;
   ie = pmy_block->ie; je = pmy_block->je; ke = pmy_block->ke;
   Real normfac = 1.0 / (2*(Nx3+1)) / (2*(Nx2+1)) / (2*(Nx1+1));
-  for (int k=ks;k<=ke;++k) {
-    for (int j=js;j<=je;++j) {
-      for (int i=is;i<=ie;++i) {
+  for (int k=ks; k<=ke; ++k) {
+    for (int j=js; j<=je; ++j) {
+      for (int i=is; i<=ie; ++i) {
         idx = (i-is) + dcmps[CXB].nx1*((j-js) + dcmps[CXB].nx2*(k-ks));
         out_[idx] *= normfac;
       }
@@ -1517,8 +1504,7 @@ void OBCGravityCar::SolveZeroBC()
   }
 }
 
-void OBCGravityCar::CalcBndCharge()
-{
+void OBCGravityCar::CalcBndCharge() {
   RegionSize& mesh_size = pmy_block->pmy_mesh->mesh_size;
   RegionSize& block_size = pmy_block->block_size;
   Real normfac1 = 1.0 / (four_pi_G*dx1_*dx1_);
@@ -1537,14 +1523,14 @@ void OBCGravityCar::CalcBndCharge()
     int jshift=0, kshift=0;
     if (bndry_dcmps[STH][CBLOCK].js==0) jshift=ngh_;
     if (bndry_dcmps[STH][CBLOCK].ks==0) kshift=ngh_;
-    for (int k=0;k<bndry_dcmps[STH][CBLOCK].nx3;++k) {
-      for (int j=0;j<bndry_dcmps[STH][CBLOCK].nx2;++j) {
+    for (int k=0; k<bndry_dcmps[STH][CBLOCK].nx3; ++k) {
+      for (int j=0; j<bndry_dcmps[STH][CBLOCK].nx2; ++j) {
         int idx2 = j + bndry_dcmps[STH][CBLOCK].nx2*k;
         sigma[STH][idx2] = 0;
       }
     }
-    for (int k=0;k<dcmps[CXB].nx3;++k) {
-      for (int j=0;j<dcmps[CXB].nx2;++j) {
+    for (int k=0; k<dcmps[CXB].nx3; ++k) {
+      for (int j=0; j<dcmps[CXB].nx2; ++j) {
         int idx2 = (j+jshift) + bndry_dcmps[STH][CBLOCK].nx2*(k+kshift);
         int idx = 0 + dcmps[CXB].nx1*(j + dcmps[CXB].nx2*k);
         sigma[STH][idx2] = out_[idx]*normfac1;
@@ -1555,14 +1541,14 @@ void OBCGravityCar::CalcBndCharge()
     int jshift=0, kshift=0;
     if (bndry_dcmps[NTH][CBLOCK].js==0) jshift=ngh_;
     if (bndry_dcmps[NTH][CBLOCK].ks==0) kshift=ngh_;
-    for (int k=0;k<bndry_dcmps[NTH][CBLOCK].nx3;++k) {
-      for (int j=0;j<bndry_dcmps[NTH][CBLOCK].nx2;++j) {
+    for (int k=0; k<bndry_dcmps[NTH][CBLOCK].nx3; ++k) {
+      for (int j=0; j<bndry_dcmps[NTH][CBLOCK].nx2; ++j) {
         int idx2 = j + bndry_dcmps[NTH][CBLOCK].nx2*k;
         sigma[NTH][idx2] = 0;
       }
     }
-    for (int k=0;k<dcmps[CXB].nx3;++k) {
-      for (int j=0;j<dcmps[CXB].nx2;++j) {
+    for (int k=0; k<dcmps[CXB].nx3; ++k) {
+      for (int j=0; j<dcmps[CXB].nx2; ++j) {
         int idx2 = (j+jshift) + bndry_dcmps[NTH][CBLOCK].nx2*(k+kshift);
         int idx = dcmps[CXB].nx1-1 + dcmps[CXB].nx1*(j + dcmps[CXB].nx2*k);
         sigma[NTH][idx2] = out_[idx]*normfac1;
@@ -1573,14 +1559,14 @@ void OBCGravityCar::CalcBndCharge()
     int ishift=0, kshift=0;
     if (bndry_dcmps[WST][CBLOCK].is==0) ishift=ngh_;
     if (bndry_dcmps[WST][CBLOCK].ks==0) kshift=ngh_;
-    for (int k=0;k<bndry_dcmps[WST][CBLOCK].nx3;++k) {
-      for (int i=0;i<bndry_dcmps[WST][CBLOCK].nx1;++i) {
+    for (int k=0; k<bndry_dcmps[WST][CBLOCK].nx3; ++k) {
+      for (int i=0; i<bndry_dcmps[WST][CBLOCK].nx1; ++i) {
         int idx2 = i + bndry_dcmps[WST][CBLOCK].nx1*k;
         sigma[WST][idx2] = 0;
       }
     }
-    for (int k=0;k<dcmps[CXB].nx3;++k) {
-      for (int i=0;i<dcmps[CXB].nx1;++i) {
+    for (int k=0; k<dcmps[CXB].nx3; ++k) {
+      for (int i=0; i<dcmps[CXB].nx1; ++i) {
         int idx2 = (i+ishift) + bndry_dcmps[WST][CBLOCK].nx1*(k+kshift);
         int idx = i + dcmps[CXB].nx1*(0 + dcmps[CXB].nx2*k);
         sigma[WST][idx2] = out_[idx]*normfac2;
@@ -1591,14 +1577,14 @@ void OBCGravityCar::CalcBndCharge()
     int ishift=0, kshift=0;
     if (bndry_dcmps[EST][CBLOCK].is==0) ishift=ngh_;
     if (bndry_dcmps[EST][CBLOCK].ks==0) kshift=ngh_;
-    for (int k=0;k<bndry_dcmps[EST][CBLOCK].nx3;++k) {
-      for (int i=0;i<bndry_dcmps[EST][CBLOCK].nx1;++i) {
+    for (int k=0; k<bndry_dcmps[EST][CBLOCK].nx3; ++k) {
+      for (int i=0; i<bndry_dcmps[EST][CBLOCK].nx1; ++i) {
         int idx2 = i + bndry_dcmps[EST][CBLOCK].nx1*k;
         sigma[EST][idx2] = 0;
       }
     }
-    for (int k=0;k<dcmps[CXB].nx3;++k) {
-      for (int i=0;i<dcmps[CXB].nx1;++i) {
+    for (int k=0; k<dcmps[CXB].nx3; ++k) {
+      for (int i=0; i<dcmps[CXB].nx1; ++i) {
         int idx2 = (i+ishift) + bndry_dcmps[EST][CBLOCK].nx1*(k+kshift);
         int idx = i + dcmps[CXB].nx1*(dcmps[CXB].nx2-1 + dcmps[CXB].nx2*k);
         sigma[EST][idx2] = out_[idx]*normfac2;
@@ -1609,14 +1595,14 @@ void OBCGravityCar::CalcBndCharge()
     int ishift=0, jshift=0;
     if (bndry_dcmps[CBOT][CBLOCK].is==0) ishift=ngh_;
     if (bndry_dcmps[CBOT][CBLOCK].js==0) jshift=ngh_;
-    for (int j=0;j<bndry_dcmps[CBOT][CBLOCK].nx2;++j) {
-      for (int i=0;i<bndry_dcmps[CBOT][CBLOCK].nx1;++i) {
+    for (int j=0; j<bndry_dcmps[CBOT][CBLOCK].nx2; ++j) {
+      for (int i=0; i<bndry_dcmps[CBOT][CBLOCK].nx1; ++i) {
         int idx2 = i + bndry_dcmps[CBOT][CBLOCK].nx1*j;
         sigma[CBOT][idx2] = 0;
       }
     }
-    for (int j=0;j<dcmps[CXB].nx2;++j) {
-      for (int i=0;i<dcmps[CXB].nx1;++i) {
+    for (int j=0; j<dcmps[CXB].nx2; ++j) {
+      for (int i=0; i<dcmps[CXB].nx1; ++i) {
         int idx2 = (i+ishift) + bndry_dcmps[CBOT][CBLOCK].nx1*(j+jshift);
         int idx = i + dcmps[CXB].nx1*(j + dcmps[CXB].nx2*(0));
         sigma[CBOT][idx2] = out_[idx]*normfac3;
@@ -1627,14 +1613,14 @@ void OBCGravityCar::CalcBndCharge()
     int ishift=0, jshift=0;
     if (bndry_dcmps[CTOP][CBLOCK].is==0) ishift=ngh_;
     if (bndry_dcmps[CTOP][CBLOCK].js==0) jshift=ngh_;
-    for (int j=0;j<bndry_dcmps[CTOP][CBLOCK].nx2;++j) {
-      for (int i=0;i<bndry_dcmps[CTOP][CBLOCK].nx1;++i) {
+    for (int j=0; j<bndry_dcmps[CTOP][CBLOCK].nx2; ++j) {
+      for (int i=0; i<bndry_dcmps[CTOP][CBLOCK].nx1; ++i) {
         int idx2 = i + bndry_dcmps[CTOP][CBLOCK].nx1*j;
         sigma[CTOP][idx2] = 0;
       }
     }
-    for (int j=0;j<dcmps[CXB].nx2;++j) {
-      for (int i=0;i<dcmps[CXB].nx1;++i) {
+    for (int j=0; j<dcmps[CXB].nx2; ++j) {
+      for (int i=0; i<dcmps[CXB].nx1; ++i) {
         int idx2 = (i+ishift) + bndry_dcmps[CTOP][CBLOCK].nx1*(j+jshift);
         int idx = i + dcmps[CXB].nx1*(j + dcmps[CXB].nx2*(dcmps[CXB].nx3-1));
         sigma[CTOP][idx2] = out_[idx]*normfac3;
@@ -1643,13 +1629,12 @@ void OBCGravityCar::CalcBndCharge()
   }
 }
 
-void OBCGravityCar::CalcBndPot()
-{
+void OBCGravityCar::CalcBndPot() {
   MPI_Request req[6];
-  BndFFTForward(bndry_dcmps[STH][FFT_FIRST].nx3, bndry_dcmps[STH][FFT_FIRST].nx2, 
+  BndFFTForward(bndry_dcmps[STH][FFT_FIRST].nx3, bndry_dcmps[STH][FFT_FIRST].nx2,
     bndry_dcmps[STH][FFT_SECOND].nx2, bndry_dcmps[STH][FFT_SECOND].nx3, STH);
-  for (int p1=C;p1<=S;++p1) {
-    for (int p2=C;p2<=S;++p2) {
+  for (int p1=C; p1<=S; ++p1) {
+    for (int p2=C; p2<=S; ++p2) {
 //      MPI_Ibcast(sigma_fft[STH][p1][p2], dcmps[PB].nx2*dcmps[PB].nx3,
 //       MPI_DOUBLE, 0, x1comm, &req[STH]);
       MPI_Bcast(sigma_fft[STH][p1][p2], dcmps[PB].nx2*dcmps[PB].nx3,
@@ -1658,8 +1643,8 @@ void OBCGravityCar::CalcBndPot()
   }
   BndFFTForward(bndry_dcmps[NTH][FFT_FIRST].nx3, bndry_dcmps[NTH][FFT_FIRST].nx2,
     bndry_dcmps[NTH][FFT_SECOND].nx2, bndry_dcmps[NTH][FFT_SECOND].nx3, NTH);
-  for (int p1=C;p1<=S;++p1) {
-    for (int p2=C;p2<=S;++p2) {
+  for (int p1=C; p1<=S; ++p1) {
+    for (int p2=C; p2<=S; ++p2) {
 //      MPI_Ibcast(sigma_fft[NTH][p1][p2], dcmps[PB].nx2*dcmps[PB].nx3,
 //       MPI_DOUBLE, x1comm_size-1, x1comm, &req[NTH]);
       MPI_Bcast(sigma_fft[NTH][p1][p2], dcmps[PB].nx2*dcmps[PB].nx3,
@@ -1668,8 +1653,8 @@ void OBCGravityCar::CalcBndPot()
   }
   BndFFTForward(bndry_dcmps[WST][FFT_FIRST].nx3, bndry_dcmps[WST][FFT_FIRST].nx1,
     bndry_dcmps[WST][FFT_SECOND].nx1, bndry_dcmps[WST][FFT_SECOND].nx3, WST);
-  for (int p1=C;p1<=S;++p1) {
-    for (int p2=C;p2<=S;++p2) {
+  for (int p1=C; p1<=S; ++p1) {
+    for (int p2=C; p2<=S; ++p2) {
 //      MPI_Ibcast(sigma_fft[WST][p1][p2], dcmps[PB].nx1*dcmps[PB].nx3,
 //       MPI_DOUBLE, 0, x2comm, &req[WST]);
       MPI_Bcast(sigma_fft[WST][p1][p2], dcmps[PB].nx1*dcmps[PB].nx3,
@@ -1678,8 +1663,8 @@ void OBCGravityCar::CalcBndPot()
   }
   BndFFTForward(bndry_dcmps[EST][FFT_FIRST].nx3, bndry_dcmps[EST][FFT_FIRST].nx1,
     bndry_dcmps[EST][FFT_SECOND].nx1, bndry_dcmps[EST][FFT_SECOND].nx3, EST);
-  for (int p1=C;p1<=S;++p1) {
-    for (int p2=C;p2<=S;++p2) {
+  for (int p1=C; p1<=S; ++p1) {
+    for (int p2=C; p2<=S; ++p2) {
 //      MPI_Ibcast(sigma_fft[EST][p1][p2], dcmps[PB].nx1*dcmps[PB].nx3,
 //       MPI_DOUBLE, x2comm_size-1, x2comm, &req[EST]);
       MPI_Bcast(sigma_fft[EST][p1][p2], dcmps[PB].nx1*dcmps[PB].nx3,
@@ -1688,8 +1673,8 @@ void OBCGravityCar::CalcBndPot()
   }
   BndFFTForward(bndry_dcmps[CBOT][FFT_FIRST].nx2, bndry_dcmps[CBOT][FFT_FIRST].nx1,
     bndry_dcmps[CBOT][FFT_SECOND].nx1, bndry_dcmps[CBOT][FFT_SECOND].nx2, CBOT);
-  for (int p1=C;p1<=S;++p1) {
-    for (int p2=C;p2<=S;++p2) {
+  for (int p1=C; p1<=S; ++p1) {
+    for (int p2=C; p2<=S; ++p2) {
 //      MPI_Ibcast(sigma_fft[CBOT][p1][p2], dcmps[PB].nx1*dcmps[PB].nx2,
 //       MPI_DOUBLE, 0, x3comm, &req[CBOT]);
       MPI_Bcast(sigma_fft[CBOT][p1][p2], dcmps[PB].nx1*dcmps[PB].nx2,
@@ -1698,8 +1683,8 @@ void OBCGravityCar::CalcBndPot()
   }
   BndFFTForward(bndry_dcmps[CTOP][FFT_FIRST].nx2, bndry_dcmps[CTOP][FFT_FIRST].nx1,
     bndry_dcmps[CTOP][FFT_SECOND].nx1, bndry_dcmps[CTOP][FFT_SECOND].nx2, CTOP);
-  for (int p1=C;p1<=S;++p1) {
-    for (int p2=C;p2<=S;++p2) {
+  for (int p1=C; p1<=S; ++p1) {
+    for (int p2=C; p2<=S; ++p2) {
 //      MPI_Ibcast(sigma_fft[CTOP][p1][p2], dcmps[PB].nx1*dcmps[PB].nx2,
 //       MPI_DOUBLE, x3comm_size-1, x3comm, &req[CTOP]);
       MPI_Bcast(sigma_fft[CTOP][p1][p2], dcmps[PB].nx1*dcmps[PB].nx2,
@@ -1709,41 +1694,48 @@ void OBCGravityCar::CalcBndPot()
 //  MPI_Waitall(6, req, MPI_STATUSES_IGNORE);
 
   int sgn1, sgn2, sgn3;
-  for (int k=0;k<dcmps[PB].nx3;++k) {
+  for (int k=0; k<dcmps[PB].nx3; ++k) {
     sgn3 = ((dcmps[PB].ks+k)%2)*2 - 1;
-    for (int j=0;j<dcmps[PB].nx2;++j) {
+    for (int j=0; j<dcmps[PB].nx2; ++j) {
       sgn2 = ((dcmps[PB].js+j)%2)*2 - 1;
-      for (int i=0;i<dcmps[PB].nx1;++i) {
+      for (int i=0; i<dcmps[PB].nx1; ++i) {
         int idx = i + dcmps[PB].nx1*(j + dcmps[PB].nx2*k);
         int idx1 = j + dcmps[PB].nx2*k;
         int idx2 = i + dcmps[PB].nx1*k;
         int idx3 = i + dcmps[PB].nx1*j;
         sgn1 = ((dcmps[PB].is+i)%2)*2 - 1;
-        sigfft[C][C][C][idx] = sigma_fft[STH][C][C][idx1] - sgn1*sigma_fft[NTH][C][C][idx1]
-                             + sigma_fft[WST][C][C][idx2] - sgn2*sigma_fft[EST][C][C][idx2]
-                             + sigma_fft[CBOT][C][C][idx3] - sgn3*sigma_fft[CTOP][C][C][idx3];
-        sigfft[C][C][S][idx] = sigma_fft[STH][C][S][idx1] - sgn1*sigma_fft[NTH][C][S][idx1]
-                             + sigma_fft[WST][C][S][idx2] - sgn2*sigma_fft[EST][C][S][idx2];
-        sigfft[C][S][C][idx] = sigma_fft[STH][S][C][idx1] - sgn1*sigma_fft[NTH][S][C][idx1]
-                             + sigma_fft[CBOT][C][S][idx3] - sgn3*sigma_fft[CTOP][C][S][idx3];
-        sigfft[S][C][C][idx] = sigma_fft[WST][S][C][idx2] - sgn2*sigma_fft[EST][S][C][idx2]
-                             + sigma_fft[CBOT][S][C][idx3] - sgn3*sigma_fft[CTOP][S][C][idx3];
-        sigfft[C][S][S][idx] = sigma_fft[STH][S][S][idx1] - sgn1*sigma_fft[NTH][S][S][idx1];
-        sigfft[S][C][S][idx] = sigma_fft[WST][S][S][idx2] - sgn2*sigma_fft[EST][S][S][idx2];
-        sigfft[S][S][C][idx] = sigma_fft[CBOT][S][S][idx3] - sgn3*sigma_fft[CTOP][S][S][idx3];
+        sigfft[C][C][C][idx] = sigma_fft[STH][C][C][idx1]
+          - sgn1*sigma_fft[NTH][C][C][idx1]
+          + sigma_fft[WST][C][C][idx2] - sgn2*sigma_fft[EST][C][C][idx2]
+          + sigma_fft[CBOT][C][C][idx3] - sgn3*sigma_fft[CTOP][C][C][idx3];
+        sigfft[C][C][S][idx] =
+          sigma_fft[STH][C][S][idx1] - sgn1*sigma_fft[NTH][C][S][idx1]
+          + sigma_fft[WST][C][S][idx2] - sgn2*sigma_fft[EST][C][S][idx2];
+        sigfft[C][S][C][idx] =
+          sigma_fft[STH][S][C][idx1] - sgn1*sigma_fft[NTH][S][C][idx1]
+          + sigma_fft[CBOT][C][S][idx3] - sgn3*sigma_fft[CTOP][C][S][idx3];
+        sigfft[S][C][C][idx] =
+          sigma_fft[WST][S][C][idx2] - sgn2*sigma_fft[EST][S][C][idx2]
+          + sigma_fft[CBOT][S][C][idx3] - sgn3*sigma_fft[CTOP][S][C][idx3];
+        sigfft[C][S][S][idx] = sigma_fft[STH][S][S][idx1]
+          - sgn1*sigma_fft[NTH][S][S][idx1];
+        sigfft[S][C][S][idx] = sigma_fft[WST][S][S][idx2]
+          - sgn2*sigma_fft[EST][S][S][idx2];
+        sigfft[S][S][C][idx] = sigma_fft[CBOT][S][S][idx3]
+          - sgn3*sigma_fft[CTOP][S][S][idx3];
       }
     }
   }
 
   // multiply Green's function in Fourier space
-  for (int k=0;k<dcmps[PB].nx3;++k) {
-    for (int j=0;j<dcmps[PB].nx2;++j) {
-      for (int i=0;i<dcmps[PB].nx1;++i) {
+  for (int k=0; k<dcmps[PB].nx3; ++k) {
+    for (int j=0; j<dcmps[PB].nx2; ++j) {
+      for (int i=0; i<dcmps[PB].nx1; ++i) {
         int idx = i + dcmps[PB].nx1*(j + dcmps[PB].nx2*k);
         sigfft[C][C][C][idx] *= grf[idx]; // this is psifft
         sigfft[C][C][S][idx] *= grf[idx]; // this is psifft
         sigfft[C][S][C][idx] *= grf[idx]; // this is psifft
-        sigfft[S][C][C][idx] *= grf[idx]; // this is psifft    
+        sigfft[S][C][C][idx] *= grf[idx]; // this is psifft
         sigfft[C][S][S][idx] *= grf[idx]; // this is psifft
         sigfft[S][C][S][idx] *= grf[idx]; // this is psifft
         sigfft[S][S][C][idx] *= grf[idx]; // this is psifft
@@ -1752,14 +1744,14 @@ void OBCGravityCar::CalcBndPot()
   }
 
   // Perform inverse transform to obtain 2D FFTs of STH/NTH boundary potential
-  for (int p1=C;p1<=S;++p1) {
-    for (int p2=C;p2<=S;++p2) {
-      for (int k=0;k<dcmps[PB].nx3;++k) {
-        for (int j=0;j<dcmps[PB].nx2;++j) {
+  for (int p1=C; p1<=S; ++p1) {
+    for (int p2=C; p2<=S; ++p2) {
+      for (int k=0; k<dcmps[PB].nx3; ++k) {
+        for (int j=0; j<dcmps[PB].nx2; ++j) {
           int idx2 = j + dcmps[PB].nx2*k;
           sigma_fft[STH][p1][p2][idx2] = 0.0;
           sigma_fft[NTH][p1][p2][idx2] = 0.0;
-          for (int i=0;i<dcmps[PB].nx1;++i) {
+          for (int i=0; i<dcmps[PB].nx1; ++i) {
             int idx1 = i + dcmps[PB].nx1*(j + dcmps[PB].nx2*k);
             sgn1 = ((dcmps[PB].is+i)%2)*2 - 1;
             sigma_fft[STH][p1][p2][idx2] += sigfft[C][p1][p2][idx1];
@@ -1769,9 +1761,9 @@ void OBCGravityCar::CalcBndPot()
       }
     }
   }
-  for (int p1=C;p1<=S;++p1) {
-    for (int p2=C;p2<=S;++p2) {
-      if (x1rank == 0) 
+  for (int p1=C; p1<=S; ++p1) {
+    for (int p2=C; p2<=S; ++p2) {
+      if (x1rank == 0)
 //        MPI_Ireduce(MPI_IN_PLACE, sigma_fft[STH][p1][p2],
 //         dcmps[PB].nx2*dcmps[PB].nx3, MPI_DOUBLE, MPI_SUM,
 //         0, x1comm, &req[STH]);
@@ -1785,7 +1777,7 @@ void OBCGravityCar::CalcBndPot()
         MPI_Reduce(sigma_fft[STH][p1][p2], sigma_fft[STH][p1][p2],
          dcmps[PB].nx2*dcmps[PB].nx3, MPI_DOUBLE, MPI_SUM,
          0, x1comm);
-      if (x1rank == x1comm_size-1) 
+      if (x1rank == x1comm_size-1)
 //        MPI_Ireduce(MPI_IN_PLACE, sigma_fft[NTH][p1][p2],
 //         dcmps[PB].nx2*dcmps[PB].nx3, MPI_DOUBLE, MPI_SUM,
 //         x1comm_size-1, x1comm, &req[NTH]);
@@ -1802,10 +1794,10 @@ void OBCGravityCar::CalcBndPot()
     }
   }
   // Perform inverse transform to obtain 2D FFTs of WST/EST boundary potential
-  for (int p1=C;p1<=S;++p1) {
-    for (int p2=C;p2<=S;++p2) {
-      for (int k=0;k<dcmps[PB].nx3;++k) {
-        for (int i=0;i<dcmps[PB].nx1;++i) {
+  for (int p1=C; p1<=S; ++p1) {
+    for (int p2=C; p2<=S; ++p2) {
+      for (int k=0; k<dcmps[PB].nx3; ++k) {
+        for (int i=0; i<dcmps[PB].nx1; ++i) {
           int idx2 = i + dcmps[PB].nx1*k;
           sigma_fft[WST][p1][p2][idx2] = 0.0;
           sigma_fft[EST][p1][p2][idx2] = 0.0;
@@ -1813,12 +1805,12 @@ void OBCGravityCar::CalcBndPot()
       }
     }
   }
-  for (int p1=C;p1<=S;++p1) {
-    for (int p2=C;p2<=S;++p2) {
-      for (int k=0;k<dcmps[PB].nx3;++k) {
-        for (int j=0;j<dcmps[PB].nx2;++j) {
+  for (int p1=C; p1<=S; ++p1) {
+    for (int p2=C; p2<=S; ++p2) {
+      for (int k=0; k<dcmps[PB].nx3; ++k) {
+        for (int j=0; j<dcmps[PB].nx2; ++j) {
           sgn2 = ((dcmps[PB].js+j)%2)*2 - 1;
-          for (int i=0;i<dcmps[PB].nx1;++i) {
+          for (int i=0; i<dcmps[PB].nx1; ++i) {
             int idx2 = i + dcmps[PB].nx1*k;
             int idx1 = i + dcmps[PB].nx1*(j + dcmps[PB].nx2*k);
             sigma_fft[WST][p1][p2][idx2] += sigfft[p1][C][p2][idx1];
@@ -1828,9 +1820,9 @@ void OBCGravityCar::CalcBndPot()
       }
     }
   }
-  for (int p1=C;p1<=S;++p1) {
-    for (int p2=C;p2<=S;++p2) {
-      if (x2rank == 0) 
+  for (int p1=C; p1<=S; ++p1) {
+    for (int p2=C; p2<=S; ++p2) {
+      if (x2rank == 0)
 //        MPI_Ireduce(MPI_IN_PLACE, sigma_fft[WST][p1][p2],
 //         dcmps[PB].nx1*dcmps[PB].nx3, MPI_DOUBLE, MPI_SUM,
 //         0, x2comm, &req[WST]);
@@ -1844,7 +1836,7 @@ void OBCGravityCar::CalcBndPot()
         MPI_Reduce(sigma_fft[WST][p1][p2], sigma_fft[WST][p1][p2],
          dcmps[PB].nx1*dcmps[PB].nx3, MPI_DOUBLE, MPI_SUM,
          0, x2comm);
-      if (x2rank == x2comm_size-1) 
+      if (x2rank == x2comm_size-1)
 //        MPI_Ireduce(MPI_IN_PLACE, sigma_fft[EST][p1][p2],
 //         dcmps[PB].nx1*dcmps[PB].nx3, MPI_DOUBLE, MPI_SUM,
 //         x2comm_size-1, x2comm, &req[EST]);
@@ -1862,10 +1854,10 @@ void OBCGravityCar::CalcBndPot()
   }
 
   // Perform inverse transform to obtain 2D FFTs of CBOT/CTOP boundary potential
-  for (int p1=C;p1<=S;++p1) {
-    for (int p2=C;p2<=S;++p2) {
-      for (int j=0;j<dcmps[PB].nx2;++j) {
-        for (int i=0;i<dcmps[PB].nx1;++i) {
+  for (int p1=C; p1<=S; ++p1) {
+    for (int p2=C; p2<=S; ++p2) {
+      for (int j=0; j<dcmps[PB].nx2; ++j) {
+        for (int i=0; i<dcmps[PB].nx1; ++i) {
           int idx2 = i + dcmps[PB].nx1*j;
           sigma_fft[CBOT][p1][p2][idx2] = 0.0;
           sigma_fft[CTOP][p1][p2][idx2] = 0.0;
@@ -1873,12 +1865,12 @@ void OBCGravityCar::CalcBndPot()
       }
     }
   }
-  for (int p1=C;p1<=S;++p1) {
-    for (int p2=C;p2<=S;++p2) {
-      for (int k=0;k<dcmps[PB].nx3;++k) {
+  for (int p1=C; p1<=S; ++p1) {
+    for (int p2=C; p2<=S; ++p2) {
+      for (int k=0; k<dcmps[PB].nx3; ++k) {
         sgn3 = ((dcmps[PB].ks+k)%2)*2 - 1;
-        for (int j=0;j<dcmps[PB].nx2;++j) {
-          for (int i=0;i<dcmps[PB].nx1;++i) {
+        for (int j=0; j<dcmps[PB].nx2; ++j) {
+          for (int i=0; i<dcmps[PB].nx1; ++i) {
             int idx2 = i + dcmps[PB].nx1*j;
             int idx1 = i + dcmps[PB].nx1*(j + dcmps[PB].nx2*k);
             sigma_fft[CBOT][p1][p2][idx2] += sigfft[p1][p2][C][idx1];
@@ -1888,9 +1880,9 @@ void OBCGravityCar::CalcBndPot()
       }
     }
   }
-  for (int p1=C;p1<=S;++p1) {
-    for (int p2=C;p2<=S;++p2) {
-      if (x3rank == 0) 
+  for (int p1=C; p1<=S; ++p1) {
+    for (int p2=C; p2<=S; ++p2) {
+      if (x3rank == 0)
 //        MPI_Ireduce(MPI_IN_PLACE, sigma_fft[CBOT][p1][p2],
 //         dcmps[PB].nx1*dcmps[PB].nx2, MPI_DOUBLE, MPI_SUM,
 //         0, x3comm, &req[CBOT]);
@@ -1904,7 +1896,7 @@ void OBCGravityCar::CalcBndPot()
         MPI_Reduce(sigma_fft[CBOT][p1][p2], sigma_fft[CBOT][p1][p2],
          dcmps[PB].nx1*dcmps[PB].nx2, MPI_DOUBLE, MPI_SUM,
          0, x3comm);
-      if (x3rank == x3comm_size-1) 
+      if (x3rank == x3comm_size-1)
 //        MPI_Ireduce(MPI_IN_PLACE, sigma_fft[CTOP][p1][p2],
 //         dcmps[PB].nx1*dcmps[PB].nx2, MPI_DOUBLE, MPI_SUM,
 //         x3comm_size-1, x3comm, &req[CTOP]);
@@ -1921,7 +1913,7 @@ void OBCGravityCar::CalcBndPot()
     }
   }
 //  MPI_Wait(&req[STH], MPI_STATUS_IGNORE);
-  BndFFTBackward(bndry_dcmps[STH][FFT_FIRST].nx3, bndry_dcmps[STH][FFT_FIRST].nx2, 
+  BndFFTBackward(bndry_dcmps[STH][FFT_FIRST].nx3, bndry_dcmps[STH][FFT_FIRST].nx2,
     bndry_dcmps[STH][FFT_SECOND].nx2, bndry_dcmps[STH][FFT_SECOND].nx3, STH);
 //  MPI_Wait(&req[NTH], MPI_STATUS_IGNORE);
   BndFFTBackward(bndry_dcmps[NTH][FFT_FIRST].nx3, bndry_dcmps[NTH][FFT_FIRST].nx2,
@@ -1939,17 +1931,17 @@ void OBCGravityCar::CalcBndPot()
   BndFFTBackward(bndry_dcmps[CTOP][FFT_FIRST].nx2, bndry_dcmps[CTOP][FFT_FIRST].nx1,
     bndry_dcmps[CTOP][FFT_SECOND].nx1, bndry_dcmps[CTOP][FFT_SECOND].nx2, CTOP);
 
-  for (int b=STH;b<=NTH;++b) {
-    for (int k=0;k<dcmps[PB].nx3;++k) {
-      for (int j=0;j<dcmps[PB].nx2;++j) {
+  for (int b=STH; b<=NTH; ++b) {
+    for (int k=0; k<dcmps[PB].nx3; ++k) {
+      for (int j=0; j<dcmps[PB].nx2; ++j) {
         int idx = j + dcmps[PB].nx2*k;
         sigma[b][idx] = 0;
       }
     }
-    for (int p1=C;p1<=S;++p1) {
-      for (int p2=C;p2<=S;++p2) {
-        for (int k=0;k<dcmps[PB].nx3;++k) {
-          for (int j=0;j<dcmps[PB].nx2;++j) {
+    for (int p1=C; p1<=S; ++p1) {
+      for (int p2=C; p2<=S; ++p2) {
+        for (int k=0; k<dcmps[PB].nx3; ++k) {
+          for (int j=0; j<dcmps[PB].nx2; ++j) {
             int idx = j + dcmps[PB].nx2*k;
             sigma[b][idx] += sigma_fft[b][p1][p2][idx];
           }
@@ -1957,17 +1949,17 @@ void OBCGravityCar::CalcBndPot()
       }
     }
   }
-  for (int b=WST;b<=EST;++b) {
-    for (int k=0;k<dcmps[PB].nx3;++k) {
-      for (int i=0;i<dcmps[PB].nx1;++i) {
+  for (int b=WST; b<=EST; ++b) {
+    for (int k=0; k<dcmps[PB].nx3; ++k) {
+      for (int i=0; i<dcmps[PB].nx1; ++i) {
         int idx = i + dcmps[PB].nx1*k;
         sigma[b][idx] = 0;
       }
     }
-    for (int p1=C;p1<=S;++p1) {
-      for (int p2=C;p2<=S;++p2) {
-        for (int k=0;k<dcmps[PB].nx3;++k) {
-          for (int i=0;i<dcmps[PB].nx1;++i) {
+    for (int p1=C; p1<=S; ++p1) {
+      for (int p2=C; p2<=S; ++p2) {
+        for (int k=0; k<dcmps[PB].nx3; ++k) {
+          for (int i=0; i<dcmps[PB].nx1; ++i) {
             int idx = i + dcmps[PB].nx1*k;
             sigma[b][idx] += sigma_fft[b][p1][p2][idx];
           }
@@ -1975,17 +1967,17 @@ void OBCGravityCar::CalcBndPot()
       }
     }
   }
-  for (int b=CBOT;b<=CTOP;++b) {
-    for (int j=0;j<dcmps[PB].nx2;++j) {
-      for (int i=0;i<dcmps[PB].nx1;++i) {
+  for (int b=CBOT; b<=CTOP; ++b) {
+    for (int j=0; j<dcmps[PB].nx2; ++j) {
+      for (int i=0; i<dcmps[PB].nx1; ++i) {
         int idx = i + dcmps[PB].nx1*j;
         sigma[b][idx] = 0;
       }
     }
-    for (int p1=C;p1<=S;++p1) {
-      for (int p2=C;p2<=S;++p2) {
-        for (int j=0;j<dcmps[PB].nx2;++j) {
-          for (int i=0;i<dcmps[PB].nx1;++i) {
+    for (int p1=C; p1<=S; ++p1) {
+      for (int p2=C; p2<=S; ++p2) {
+        for (int j=0; j<dcmps[PB].nx2; ++j) {
+          for (int i=0; i<dcmps[PB].nx1; ++i) {
             int idx = i + dcmps[PB].nx1*j;
             sigma[b][idx] += sigma_fft[b][p1][p2][idx];
           }
@@ -2002,8 +1994,8 @@ void OBCGravityCar::CalcBndPot()
     int jshift=0, kshift=0;
     if (bndry_dcmps[STH][CBLOCK].js==0) jshift=ngh_;
     if (bndry_dcmps[STH][CBLOCK].ks==0) kshift=ngh_;
-    for (int k=0;k<dcmps[CXB].nx3;++k) {
-      for (int j=0;j<dcmps[CXB].nx2;++j) {
+    for (int k=0; k<dcmps[CXB].nx3; ++k) {
+      for (int j=0; j<dcmps[CXB].nx2; ++j) {
         int idx2 = (j+jshift) + bndry_dcmps[STH][CBLOCK].nx2*(k+kshift);
         int idx = 0 + dcmps[CXB].nx1*(j + dcmps[CXB].nx2*k);
         in_[idx] += sigma[STH][idx2]*normfac1;
@@ -2014,8 +2006,8 @@ void OBCGravityCar::CalcBndPot()
     int jshift=0, kshift=0;
     if (bndry_dcmps[NTH][CBLOCK].js==0) jshift=ngh_;
     if (bndry_dcmps[NTH][CBLOCK].ks==0) kshift=ngh_;
-    for (int k=0;k<dcmps[CXB].nx3;++k) {
-      for (int j=0;j<dcmps[CXB].nx2;++j) {
+    for (int k=0; k<dcmps[CXB].nx3; ++k) {
+      for (int j=0; j<dcmps[CXB].nx2; ++j) {
         int idx2 = (j+jshift) + bndry_dcmps[NTH][CBLOCK].nx2*(k+kshift);
         int idx = dcmps[CXB].nx1-1 + dcmps[CXB].nx1*(j + dcmps[CXB].nx2*k);
         in_[idx] += sigma[NTH][idx2]*normfac1;
@@ -2026,8 +2018,8 @@ void OBCGravityCar::CalcBndPot()
     int ishift=0, kshift=0;
     if (bndry_dcmps[WST][CBLOCK].is==0) ishift=ngh_;
     if (bndry_dcmps[WST][CBLOCK].ks==0) kshift=ngh_;
-    for (int k=0;k<dcmps[CXB].nx3;++k) {
-      for (int i=0;i<dcmps[CXB].nx1;++i) {
+    for (int k=0; k<dcmps[CXB].nx3; ++k) {
+      for (int i=0; i<dcmps[CXB].nx1; ++i) {
         int idx2 = (i+ishift) + bndry_dcmps[WST][CBLOCK].nx1*(k+kshift);
         int idx = i + dcmps[CXB].nx1*(0 + dcmps[CXB].nx2*k);
         in_[idx] += sigma[WST][idx2]*normfac2;
@@ -2038,8 +2030,8 @@ void OBCGravityCar::CalcBndPot()
     int ishift=0, kshift=0;
     if (bndry_dcmps[EST][CBLOCK].is==0) ishift=ngh_;
     if (bndry_dcmps[EST][CBLOCK].ks==0) kshift=ngh_;
-    for (int k=0;k<dcmps[CXB].nx3;++k) {
-      for (int i=0;i<dcmps[CXB].nx1;++i) {
+    for (int k=0; k<dcmps[CXB].nx3; ++k) {
+      for (int i=0; i<dcmps[CXB].nx1; ++i) {
         int idx2 = (i+ishift) + bndry_dcmps[EST][CBLOCK].nx1*(k+kshift);
         int idx = i + dcmps[CXB].nx1*(dcmps[CXB].nx2-1 + dcmps[CXB].nx2*k);
         in_[idx] += sigma[EST][idx2]*normfac2;
@@ -2050,8 +2042,8 @@ void OBCGravityCar::CalcBndPot()
     int ishift=0, jshift=0;
     if (bndry_dcmps[CBOT][CBLOCK].is==0) ishift=ngh_;
     if (bndry_dcmps[CBOT][CBLOCK].js==0) jshift=ngh_;
-    for (int j=0;j<dcmps[CXB].nx2;++j) {
-      for (int i=0;i<dcmps[CXB].nx1;++i) {
+    for (int j=0; j<dcmps[CXB].nx2; ++j) {
+      for (int i=0; i<dcmps[CXB].nx1; ++i) {
         int idx2 = (i+ishift) + bndry_dcmps[CBOT][CBLOCK].nx1*(j+jshift);
         int idx = i + dcmps[CXB].nx1*(j + dcmps[CXB].nx2*0);
         in_[idx] += sigma[CBOT][idx2]*normfac3;
@@ -2062,8 +2054,8 @@ void OBCGravityCar::CalcBndPot()
     int ishift=0, jshift=0;
     if (bndry_dcmps[CTOP][CBLOCK].is==0) ishift=ngh_;
     if (bndry_dcmps[CTOP][CBLOCK].js==0) jshift=ngh_;
-    for (int j=0;j<dcmps[CXB].nx2;++j) {
-      for (int i=0;i<dcmps[CXB].nx1;++i) {
+    for (int j=0; j<dcmps[CXB].nx2; ++j) {
+      for (int i=0; i<dcmps[CXB].nx1; ++i) {
         int idx2 = (i+ishift) + bndry_dcmps[CTOP][CBLOCK].nx1*(j+jshift);
         int idx = i + dcmps[CXB].nx1*(j + dcmps[CXB].nx2*(dcmps[CXB].nx3-1));
         in_[idx] += sigma[CTOP][idx2]*normfac3;
@@ -2072,8 +2064,7 @@ void OBCGravityCar::CalcBndPot()
   }
 }
 
-void OBCGravityCar::RetrieveResult(AthenaArray<Real> &dst)
-{
+void OBCGravityCar::RetrieveResult(AthenaArray<Real> &dst) {
   int is, ie, js, je, ks, ke;
   int gis,gie,gjs,gje,gks,gke;
   int idx;
@@ -2087,9 +2078,9 @@ void OBCGravityCar::RetrieveResult(AthenaArray<Real> &dst)
   gks = (pmy_block->loc.lx3)*nx3;
   gke = gks + nx3 - 1;
 
-  for (int k=ks;k<=ke;++k) {
-    for (int j=js;j<=je;++j) {
-      for (int i=is;i<=ie;++i) {
+  for (int k=ks; k<=ke; ++k) {
+    for (int j=js; j<=je; ++j) {
+      for (int i=is; i<=ie; ++i) {
         idx = (i-is) + nx1*((j-js) + nx2*(k-ks));
         dst(k,j,i) = out_[idx];
       }
@@ -2099,8 +2090,8 @@ void OBCGravityCar::RetrieveResult(AthenaArray<Real> &dst)
     int jshift=0, kshift=0;
     if (bndry_dcmps[STH][CBLOCK].js==0) jshift=ngh_;
     if (bndry_dcmps[STH][CBLOCK].ks==0) kshift=ngh_;
-    for (int k=0;k<bndry_dcmps[STH][CBLOCK].nx3;++k) {
-      for (int j=0;j<bndry_dcmps[STH][CBLOCK].nx2;++j) {
+    for (int k=0; k<bndry_dcmps[STH][CBLOCK].nx3; ++k) {
+      for (int j=0; j<bndry_dcmps[STH][CBLOCK].nx2; ++j) {
         int idx2 = j + bndry_dcmps[STH][CBLOCK].nx2*k;
         dst(k+ks-kshift,j+js-jshift,is-1) = -sigma[STH][idx2];
       }
@@ -2110,8 +2101,8 @@ void OBCGravityCar::RetrieveResult(AthenaArray<Real> &dst)
     int jshift=0, kshift=0;
     if (bndry_dcmps[NTH][CBLOCK].js==0) jshift=ngh_;
     if (bndry_dcmps[NTH][CBLOCK].ks==0) kshift=ngh_;
-    for (int k=0;k<bndry_dcmps[NTH][CBLOCK].nx3;++k) {
-      for (int j=0;j<bndry_dcmps[NTH][CBLOCK].nx2;++j) {
+    for (int k=0; k<bndry_dcmps[NTH][CBLOCK].nx3; ++k) {
+      for (int j=0; j<bndry_dcmps[NTH][CBLOCK].nx2; ++j) {
         int idx2 = j + bndry_dcmps[NTH][CBLOCK].nx2*k;
         dst(k+ks-kshift,j+js-jshift,ie+1) = -sigma[NTH][idx2];
       }
@@ -2122,8 +2113,8 @@ void OBCGravityCar::RetrieveResult(AthenaArray<Real> &dst)
     if (gis==0) {ishrink++; ishift=ngh_;}
     if (gie==Nx1-1) ishrink++;
     if (bndry_dcmps[WST][CBLOCK].ks==0) kshift=ngh_;
-    for (int k=0;k<bndry_dcmps[WST][CBLOCK].nx3;++k) {
-      for (int i=0;i<bndry_dcmps[WST][CBLOCK].nx1-ishrink;++i) {
+    for (int k=0; k<bndry_dcmps[WST][CBLOCK].nx3; ++k) {
+      for (int i=0; i<bndry_dcmps[WST][CBLOCK].nx1-ishrink; ++i) {
         int idx2 = i+ishift + bndry_dcmps[WST][CBLOCK].nx1*k;
         dst(k+ks-kshift,js-1,i+is) = -sigma[WST][idx2];
       }
@@ -2134,8 +2125,8 @@ void OBCGravityCar::RetrieveResult(AthenaArray<Real> &dst)
     if (gis==0) {ishrink++; ishift=ngh_;}
     if (gie==Nx1-1) ishrink++;
     if (bndry_dcmps[EST][CBLOCK].ks==0) kshift=ngh_;
-    for (int k=0;k<bndry_dcmps[EST][CBLOCK].nx3;++k) {
-      for (int i=0;i<bndry_dcmps[EST][CBLOCK].nx1-ishrink;++i) {
+    for (int k=0; k<bndry_dcmps[EST][CBLOCK].nx3; ++k) {
+      for (int i=0; i<bndry_dcmps[EST][CBLOCK].nx1-ishrink; ++i) {
         int idx2 = i+ishift + bndry_dcmps[EST][CBLOCK].nx1*k;
         dst(k+ks-kshift,je+1,i+is) = -sigma[EST][idx2];
       }
@@ -2147,8 +2138,8 @@ void OBCGravityCar::RetrieveResult(AthenaArray<Real> &dst)
     if (gie==Nx1-1) ishrink++;
     if (gjs==0) {jshrink++; jshift=ngh_;}
     if (gje==Nx2-1) jshrink++;
-    for (int j=0;j<bndry_dcmps[CBOT][CBLOCK].nx2-jshrink;++j) {
-      for (int i=0;i<bndry_dcmps[CBOT][CBLOCK].nx1-ishrink;++i) {
+    for (int j=0; j<bndry_dcmps[CBOT][CBLOCK].nx2-jshrink; ++j) {
+      for (int i=0; i<bndry_dcmps[CBOT][CBLOCK].nx1-ishrink; ++i) {
         int idx2 = i+ishift + bndry_dcmps[CBOT][CBLOCK].nx1*(j+jshift);
         dst(ks-1,j+js,i+is) = -sigma[CBOT][idx2];
       }
@@ -2160,8 +2151,8 @@ void OBCGravityCar::RetrieveResult(AthenaArray<Real> &dst)
     if (gie==Nx1-1) ishrink++;
     if (gjs==0) {jshrink++; jshift=ngh_;}
     if (gje==Nx2-1) jshrink++;
-    for (int j=0;j<bndry_dcmps[CTOP][CBLOCK].nx2-jshrink;++j) {
-      for (int i=0;i<bndry_dcmps[CTOP][CBLOCK].nx1-ishrink;++i) {
+    for (int j=0; j<bndry_dcmps[CTOP][CBLOCK].nx2-jshrink; ++j) {
+      for (int i=0; i<bndry_dcmps[CTOP][CBLOCK].nx1-ishrink; ++i) {
         int idx2 = i+ishift + bndry_dcmps[CTOP][CBLOCK].nx1*(j+jshift);
         dst(ke+1,j+js,i+is) = -sigma[CTOP][idx2];
       }
@@ -2170,8 +2161,7 @@ void OBCGravityCar::RetrieveResult(AthenaArray<Real> &dst)
 }
 
 void tridag(AthenaArray<Real> &a, AthenaArray<Real> &b, AthenaArray<Real> &c,
-            AthenaArray<Real> &x, AthenaArray<Real> &r)
-{
+            AthenaArray<Real> &x, AthenaArray<Real> &r) {
   int j,N;
   Real bet;
   AthenaArray<Real> gam;
@@ -2180,13 +2170,13 @@ void tridag(AthenaArray<Real> &a, AthenaArray<Real> &b, AthenaArray<Real> &c,
   gam.NewAthenaArray(N);
   if (b(0) == 0.0) throw("Error 1 in tridag");
   x(0) = r(0) / (bet=b(0));
-  for (j=1;j<N;j++) {
+  for (j=1; j<N; j++) {
     gam(j) = c(j-1) / bet;
     bet = b(j) - a(j)*gam(j);
     if (b(0) == 0.0) throw("Error 2 in tridag");
     x(j) = (r(j) - a(j)*x(j-1)) / bet;
   }
-  for (j=(N-2);j>=0;j--) {
+  for (j=(N-2); j>=0; j--) {
     x(j) -= gam(j+1)*x(j+1);
   }
   gam.DeleteAthenaArray();
@@ -2195,8 +2185,7 @@ void tridag(AthenaArray<Real> &a, AthenaArray<Real> &b, AthenaArray<Real> &c,
 
 // OBCGravityCyl constructor
 OBCGravityCyl::OBCGravityCyl(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInput *pin)
- : Gravity(pmb, pin)
-{
+  : Gravity(pmb, pin) {
   int arrsize;
   pmy_driver_ = pod;
   Coordinates *pcrd = pmy_block->pcoord;
@@ -2216,7 +2205,7 @@ OBCGravityCyl::OBCGravityCyl(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
   np2 = Nx2/nx2;
   np3 = Nx3/nx3;
   rat = mesh_size.x1rat;
-  ng_ = std::min(16, Nx1/4); // TODO for uniform grid?
+  ng_ = std::min(16, Nx1/4); // TODO(SMOON) for uniform grid?
   ngh_grf_ = 16;
   noffset1_ = lNx1-Nx1-ng_;
   noffset2_ = ngh_grf_;
@@ -2225,9 +2214,8 @@ OBCGravityCyl::OBCGravityCyl(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
     if (Globals::my_rank==0) msg << "### FATAL ERROR in OBCGravityCyl" << std::endl
          << "The azimuthal domain length should be integer fraction of 2 pi."
          << std::endl;
-    throw std::runtime_error(msg.str().c_str());
-  }
-  else {
+    ATHENA_ERROR(msg);
+  } else {
     pfold_ = std::round((2*PI)/(mesh_size.x2max-mesh_size.x2min));
     if (Globals::my_rank==0) std::cout << "pfold = " << pfold_ << std::endl;
   }
@@ -2238,7 +2226,7 @@ OBCGravityCyl::OBCGravityCyl(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
   int ip1 = Globals::my_rank % np2d1; // ip1 is fast index
   int ip2 = Globals::my_rank / np2d1; // ip2 is slow index
 
-  for (int i=XB;i<=Gkk_BLOCK;++i) {
+  for (int i=XB; i<=Gkk_BLOCK; ++i) {
     dcmps[i].is = -1;
     dcmps[i].ie = -1;
     dcmps[i].js = -1;
@@ -2450,7 +2438,7 @@ OBCGravityCyl::OBCGravityCyl(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
   dcmps[Gkk2P].ks = ip2*Nx3/np2d2;
   dcmps[Gkk2P].ke = (ip2+1)*Nx3/np2d2 - 1;
 
-  for (int i=XB;i<=Gkk_BLOCK;++i) {
+  for (int i=XB; i<=Gkk_BLOCK; ++i) {
     dcmps[i].nx1 = dcmps[i].ie - dcmps[i].is + 1;
     dcmps[i].nx2 = dcmps[i].je - dcmps[i].js + 1;
     dcmps[i].nx3 = dcmps[i].ke - dcmps[i].ks + 1;
@@ -2472,8 +2460,8 @@ OBCGravityCyl::OBCGravityCyl(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
   MPI_Comm_size(x3comm, &x3comm_size);
   MPI_Comm_rank(x1comm, &x1rank);
   MPI_Comm_rank(x3comm, &x3rank);
-  for (int i=TOP;i<=OUT;++i ) {
-    for (int j=BLOCK;j<=SIGr;++j) {
+  for (int i=TOP; i<=OUT; ++i ) {
+    for (int j=BLOCK; j<=SIGr; ++j) {
       bndry_dcmps[i][j].is = 0;
       bndry_dcmps[i][j].ie = -1;
       bndry_dcmps[i][j].js = 0;
@@ -2652,12 +2640,12 @@ OBCGravityCyl::OBCGravityCyl(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
     bndry_dcmps[TOP][SIGr].ke = Nx3;
   }
 
-  for (int i=TOP;i<=OUT;++i) {
-    for (int j=BLOCK;j<=SIGr;++j) {
+  for (int i=TOP; i<=OUT; ++i) {
+    for (int j=BLOCK; j<=SIGr; ++j) {
       bndry_dcmps[i][j].nx1 = bndry_dcmps[i][j].ie - bndry_dcmps[i][j].is + 1;
       bndry_dcmps[i][j].nx2 = bndry_dcmps[i][j].je - bndry_dcmps[i][j].js + 1;
       bndry_dcmps[i][j].nx3 = bndry_dcmps[i][j].ke - bndry_dcmps[i][j].ks + 1;
-      bndry_dcmps[i][j].block_size = 
+      bndry_dcmps[i][j].block_size =
         bndry_dcmps[i][j].nx1*bndry_dcmps[i][j].nx2*bndry_dcmps[i][j].nx3;
     }
   }
@@ -2665,20 +2653,20 @@ OBCGravityCyl::OBCGravityCyl(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
   if (dcmps[X3P].nx3 % 2 != 0) {
     std::stringstream msg;
     msg << "### FATAL ERROR in CYLGRAV" << std::endl
-         << "number of vertical grid cell must be even" << std::endl; 
-    throw std::runtime_error(msg.str().c_str());
+         << "number of vertical grid cell must be even" << std::endl;
+    ATHENA_ERROR(msg);
   }
   if ((hNx2 % np2d2 != 0)||(Nx3 % np2d2 != 0)||(Nx1 % np2d2 != 0)
       ||(Nx1 % np2d1 != 0)||(Nx3 % np2d1 != 0)||(Nx3 % np1 != 0)
       ||(Nx1 % np3 != 0)||(Nx2 % 2 != 0)||(nx2 % 2 != 0)||(Nx1 % 2 != 0)
-      ||(nx1 % np2 != 0)||(nx3 % np2 != 0)) { 
+      ||(nx1 % np2 != 0)||(nx3 % np2 != 0)) {
     // nx1 % np2 is for the bndry_dcmps, which requires Nx1/np1/np2
     // nx3 % np2 is for the bndry_dcmps, which requires Nx3/np2/np3
     std::stringstream msg;
     msg << "### FATAL ERROR in OBCGravityCyl" << std::endl
          << "domain decomposition failed in obcgrav" << std::endl
          << "np2d1 = " << np2d1 << " np2d2 = " << np2d2 << std::endl;
-    throw std::runtime_error(msg.str().c_str());
+    ATHENA_ERROR(msg);
   }
 
 
@@ -2723,23 +2711,23 @@ OBCGravityCyl::OBCGravityCyl(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
   out2_  = fftw_alloc_complex(arrsize);
   bufsize = MAX(bufsize, arrsize);
   buf_ = fftw_alloc_complex(bufsize);
-  grf[TOP][TOP] = fftw_alloc_complex( MAX(dcmps[Gii].block_size, dcmps[Gii2P].block_size) );
-  grf[BOT][TOP] = fftw_alloc_complex( MAX(dcmps[Gii].block_size, dcmps[Gii2P].block_size) );
-  grf[INN][TOP] = fftw_alloc_complex( MAX(dcmps[Gik].block_size, dcmps[Gik2P].block_size) );
-  grf[OUT][TOP] = fftw_alloc_complex( MAX(dcmps[Gik].block_size, dcmps[Gik2P].block_size) );
-  grf[TOP][BOT] = fftw_alloc_complex( MAX(dcmps[Gii].block_size, dcmps[Gii2P].block_size) );
-  grf[BOT][BOT] = fftw_alloc_complex( MAX(dcmps[Gii].block_size, dcmps[Gii2P].block_size) );
-  grf[INN][BOT] = fftw_alloc_complex( MAX(dcmps[Gik].block_size, dcmps[Gik2P].block_size) );
-  grf[OUT][BOT] = fftw_alloc_complex( MAX(dcmps[Gik].block_size, dcmps[Gik2P].block_size) );
-  grf[TOP][INN] = fftw_alloc_complex( MAX(dcmps[Gki].block_size, dcmps[Gki2P].block_size) );
-  grf[BOT][INN] = fftw_alloc_complex( MAX(dcmps[Gki].block_size, dcmps[Gki2P].block_size) );
-  grf[INN][INN] = fftw_alloc_complex( MAX(dcmps[Gkk].block_size, dcmps[Gkk2P].block_size) );
-  grf[OUT][INN] = fftw_alloc_complex( MAX(dcmps[Gkk].block_size, dcmps[Gkk2P].block_size) );
-  grf[TOP][OUT] = fftw_alloc_complex( MAX(dcmps[Gki].block_size, dcmps[Gki2P].block_size) );
-  grf[BOT][OUT] = fftw_alloc_complex( MAX(dcmps[Gki].block_size, dcmps[Gki2P].block_size) );
-  grf[INN][OUT] = fftw_alloc_complex( MAX(dcmps[Gkk].block_size, dcmps[Gkk2P].block_size) );
-  grf[OUT][OUT] = fftw_alloc_complex( MAX(dcmps[Gkk].block_size, dcmps[Gkk2P].block_size) );
-  for (int i=TOP;i<=BOT;++i) {
+  grf[TOP][TOP] = fftw_alloc_complex(MAX(dcmps[Gii].block_size, dcmps[Gii2P].block_size));
+  grf[BOT][TOP] = fftw_alloc_complex(MAX(dcmps[Gii].block_size, dcmps[Gii2P].block_size));
+  grf[INN][TOP] = fftw_alloc_complex(MAX(dcmps[Gik].block_size, dcmps[Gik2P].block_size));
+  grf[OUT][TOP] = fftw_alloc_complex(MAX(dcmps[Gik].block_size, dcmps[Gik2P].block_size));
+  grf[TOP][BOT] = fftw_alloc_complex(MAX(dcmps[Gii].block_size, dcmps[Gii2P].block_size));
+  grf[BOT][BOT] = fftw_alloc_complex(MAX(dcmps[Gii].block_size, dcmps[Gii2P].block_size));
+  grf[INN][BOT] = fftw_alloc_complex(MAX(dcmps[Gik].block_size, dcmps[Gik2P].block_size));
+  grf[OUT][BOT] = fftw_alloc_complex(MAX(dcmps[Gik].block_size, dcmps[Gik2P].block_size));
+  grf[TOP][INN] = fftw_alloc_complex(MAX(dcmps[Gki].block_size, dcmps[Gki2P].block_size));
+  grf[BOT][INN] = fftw_alloc_complex(MAX(dcmps[Gki].block_size, dcmps[Gki2P].block_size));
+  grf[INN][INN] = fftw_alloc_complex(MAX(dcmps[Gkk].block_size, dcmps[Gkk2P].block_size));
+  grf[OUT][INN] = fftw_alloc_complex(MAX(dcmps[Gkk].block_size, dcmps[Gkk2P].block_size));
+  grf[TOP][OUT] = fftw_alloc_complex(MAX(dcmps[Gki].block_size, dcmps[Gki2P].block_size));
+  grf[BOT][OUT] = fftw_alloc_complex(MAX(dcmps[Gki].block_size, dcmps[Gki2P].block_size));
+  grf[INN][OUT] = fftw_alloc_complex(MAX(dcmps[Gkk].block_size, dcmps[Gkk2P].block_size));
+  grf[OUT][OUT] = fftw_alloc_complex(MAX(dcmps[Gkk].block_size, dcmps[Gkk2P].block_size));
+  for (int i=TOP; i<=BOT; ++i) {
     sigma[i] = fftw_alloc_real( dcmps[XB].nx2*dcmps[XB].nx1 );
     sigma_fft[i] = fftw_alloc_complex( (hNx2+1)*Nx1/np1/np2 );
     sigma_fft_v[i] = fftw_alloc_complex( dcmps[Gii].nx2*dcmps[Gii].nx3 );
@@ -2749,7 +2737,7 @@ OBCGravityCyl::OBCGravityCyl(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
     arrsize = MAX(dcmps[Gii].nx2*dcmps[Gii].nx1, (hNx2+1)*Nx1/np1/np2);
     psi_fft[i] = fftw_alloc_complex( arrsize );
   }
-  for (int i=INN;i<=OUT;++i) {
+  for (int i=INN; i<=OUT; ++i) {
     sigma[i] = fftw_alloc_real( dcmps[XB].nx2*dcmps[XB].nx3 );
     sigma_fft[i] = fftw_alloc_complex( (hNx2+1)*Nx3/np2/np3 );
     sigma_fft_v[i] = fftw_alloc_complex( dcmps[Gik].nx2*dcmps[Gik].nx3 );
@@ -2783,15 +2771,15 @@ OBCGravityCyl::OBCGravityCyl(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
       dx1f2_(i)=dx;
       x1v2_(i) = 0.5*(x1f2_(i+1) + x1f2_(i));
     }
-  }
-  else { // logarithmic spacing
+  } else { // logarithmic spacing
     for (int i=0; i<=ncells; ++i) {
       noffset = i-NGHOST;
       x1f_(i) = mesh_size.x1min * pow(rat, noffset);
     }
     for (int i=0; i<ncells; ++i) {
       dx1f_(i)=x1f_(i+1)-x1f_(i);
-      x1v_(i) = (TWO_3RD)*(pow(x1f_(i+1),3)-pow(x1f_(i),3))/(pow(x1f_(i+1),2) - pow(x1f_(i),2));
+      x1v_(i) = (TWO_3RD)*(pow(x1f_(i+1),3)-pow(x1f_(i),3))
+        / (pow(x1f_(i+1),2) - pow(x1f_(i),2));
     }
     for (int i=0; i<=ncells2; ++i) {
       noffset = i-(NGHOST+noffset1_);
@@ -2799,7 +2787,8 @@ OBCGravityCyl::OBCGravityCyl(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
     }
     for(int i=0; i<ncells2; ++i) {
       dx1f2_(i)=x1f2_(i+1)-x1f2_(i);
-      x1v2_(i) = (TWO_3RD)*(pow(x1f2_(i+1),3)-pow(x1f2_(i),3))/(pow(x1f2_(i+1),2) - pow(x1f2_(i),2));
+      x1v2_(i) = (TWO_3RD)*(pow(x1f2_(i+1),3)-pow(x1f2_(i),3))
+        / (pow(x1f2_(i+1),2) - pow(x1f2_(i),2));
     }
   }
   for (int i=0; i<ncells-1; ++i) {
@@ -2813,43 +2802,43 @@ OBCGravityCyl::OBCGravityCyl(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
     msg << "### FATAL ERROR in CYLGRAV" << std::endl
          << "cell ratio must be *logarithmic*, such that "
          << "x1rat = (R_max/R_min)^(1/N_R)." << std::endl;
-    throw std::runtime_error(msg.str().c_str());
+    ATHENA_ERROR(msg);
   }
 
-  for (int i=0;i<dcmps[X1P].nx1;++i) {
+  for (int i=0; i<dcmps[X1P].nx1; ++i) {
     if (mesh_size.x1rat == 1.0) {
-      a_(i) = 1.0 / SQR(dx1v_(i+NGHOST)) - 0.5/dx1v_(i+NGHOST)/x1v_(i+NGHOST);
-      c_(i) = 1.0 / SQR(dx1v_(i+NGHOST)) + 0.5/dx1v_(i+NGHOST)/x1v_(i+NGHOST);
-    }
-    else {
+      a_(i) = 1.0 / SQR(dx1v_(i+NGHOST)) - 0.5 / dx1v_(i+NGHOST) / x1v_(i+NGHOST);
+      c_(i) = 1.0 / SQR(dx1v_(i+NGHOST)) + 0.5 / dx1v_(i+NGHOST) / x1v_(i+NGHOST);
+    } else {
       a_(i) = SQR( 1.0 / std::log(rat) / x1v_(i+NGHOST) );
       c_(i) = SQR( 1.0 / std::log(rat) / x1v_(i+NGHOST) );
     }
   }
-  for (int k=0;k<dcmps[X1P].nx3;++k) {
-    lambda3_(k) = -4*SQR(sin(0.5*PI*(Real)(dcmps[X1P].ks+k+1)/((Real)((Nx3)+1))))/SQR(dx3_);
+  for (int k=0; k<dcmps[X1P].nx3; ++k) {
+    lambda3_(k) = -4*SQR(sin(0.5*PI*(Real)(dcmps[X1P].ks+k+1)
+          / ((Real)((Nx3)+1))))/SQR(dx3_);
   }
-  for (int j=0;j<dcmps[X1P].nx2;++j) {
-    for (int i=0;i<dcmps[X1P].nx1;++i) {
+  for (int j=0; j<dcmps[X1P].nx2; ++j) {
+    for (int i=0; i<dcmps[X1P].nx1; ++i) {
       lambda2_(j,i) = -4*SQR(sin(PI*(Real)(dcmps[X1P].js+j) / ((Real)Nx2)))
                      / SQR(dx2_) / SQR(x1v_(i+NGHOST));
     }
   }
-  for (int i=0;i<dcmps[E1P].nx1;++i) {
+  for (int i=0; i<dcmps[E1P].nx1; ++i) {
     if (mesh_size.x1rat == 1.0) {
-      aa_(i) = 1.0 / SQR(dx1v2_(i+NGHOST)) - 0.5/dx1v2_(i+NGHOST)/x1v2_(i+NGHOST);
-      cc_(i) = 1.0 / SQR(dx1v2_(i+NGHOST)) + 0.5/dx1v2_(i+NGHOST)/x1v2_(i+NGHOST);
-    }
-    else {
+      aa_(i) = 1.0 / SQR(dx1v2_(i+NGHOST)) - 0.5 / dx1v2_(i+NGHOST) / x1v2_(i+NGHOST);
+      cc_(i) = 1.0 / SQR(dx1v2_(i+NGHOST)) + 0.5 / dx1v2_(i+NGHOST) / x1v2_(i+NGHOST);
+    } else {
       aa_(i) = SQR( 1.0 / std::log(rat) / x1v2_(i+NGHOST) );
       cc_(i) = SQR( 1.0 / std::log(rat) / x1v2_(i+NGHOST) );
     }
   }
-  for (int k=0;k<dcmps[E1P].nx3;++k) {
-    lambda33_(k) = -4*SQR(sin(0.5*PI*(Real)(dcmps[E1P].ks+k+1)/((Real)((Nx3+2*ngh_grf_)+1))))/SQR(dx3_);
+  for (int k=0; k<dcmps[E1P].nx3; ++k) {
+    lambda33_(k) = -4*SQR(sin(0.5*PI*(Real)(dcmps[E1P].ks+k+1)
+          / ((Real)((Nx3+2*ngh_grf_)+1)))) / SQR(dx3_);
   }
-  for (int j=0;j<dcmps[E1P].nx2;++j) {
-    for (int i=0;i<dcmps[E1P].nx1;++i) {
+  for (int j=0; j<dcmps[E1P].nx2; ++j) {
+    for (int i=0; i<dcmps[E1P].nx1; ++i) {
       lambda22_(j,i) = -4*SQR(sin(PI*(Real)(dcmps[E1P].js+j) / ((Real)Nx2)))
                      / SQR(dx2_) / SQR(x1v2_(i+NGHOST));
     }
@@ -2858,90 +2847,98 @@ OBCGravityCyl::OBCGravityCyl(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
   // Initialize FFT and remap plans
   fftw_r2r_kind kind[] = {FFTW_RODFT00};
   fft_x2_forward_[0] = fftw_plan_many_dft_r2c(1, &(dcmps[X2P0].nx2),
-    dcmps[X2P0].block_size/dcmps[X2P0].nx2, ((Real*)in_), NULL, 1, dcmps[X2P0].nx2,
-    in_, NULL, 1, dcmps[X2P].nx2, FFTW_MEASURE);
+    dcmps[X2P0].block_size/dcmps[X2P0].nx2, reinterpret_cast<Real*>(in_), NULL, 1,
+    dcmps[X2P0].nx2, in_, NULL, 1, dcmps[X2P].nx2, FFTW_MEASURE);
   fft_x2_forward_[1] = fftw_plan_many_dft_r2c(1, &(dcmps[E2P0].nx2),
-    dcmps[E2P0].block_size/dcmps[E2P0].nx2, ((Real*)in2_), NULL, 1, dcmps[E2P0].nx2,
-    in2_, NULL, 1, dcmps[E2P].nx2, FFTW_MEASURE);
+    dcmps[E2P0].block_size/dcmps[E2P0].nx2, reinterpret_cast<Real*>(in2_), NULL, 1,
+    dcmps[E2P0].nx2, in2_, NULL, 1, dcmps[E2P].nx2, FFTW_MEASURE);
   fft_x2_forward_[2] = fftw_plan_many_dft_r2c(1, &(dcmps[Gii2P0].nx2),
-    dcmps[Gii2P0].block_size/dcmps[Gii2P0].nx2, ((Real*)(grf[TOP][TOP])), NULL, 1, dcmps[Gii2P0].nx2,
-    grf[TOP][TOP], NULL, 1, dcmps[Gii2P].nx2, FFTW_MEASURE);
+    dcmps[Gii2P0].block_size/dcmps[Gii2P0].nx2, reinterpret_cast<Real*>(grf[TOP][TOP]),
+    NULL, 1, dcmps[Gii2P0].nx2, grf[TOP][TOP], NULL, 1, dcmps[Gii2P].nx2, FFTW_MEASURE);
   fft_x2_forward_[3] = fftw_plan_many_dft_r2c(1, &(dcmps[Gii2P0].nx2),
-    dcmps[Gii2P0].block_size/dcmps[Gii2P0].nx2, ((Real*)(grf[TOP][BOT])), NULL, 1, dcmps[Gii2P0].nx2,
-    grf[TOP][BOT], NULL, 1, dcmps[Gii2P].nx2, FFTW_MEASURE);
+    dcmps[Gii2P0].block_size/dcmps[Gii2P0].nx2, reinterpret_cast<Real*>(grf[TOP][BOT]),
+    NULL, 1, dcmps[Gii2P0].nx2, grf[TOP][BOT], NULL, 1, dcmps[Gii2P].nx2, FFTW_MEASURE);
   fft_x2_forward_[4] = fftw_plan_many_dft_r2c(1, &(dcmps[Gii2P0].nx2),
-    dcmps[Gii2P0].block_size/dcmps[Gii2P0].nx2, ((Real*)(grf[BOT][TOP])), NULL, 1, dcmps[Gii2P0].nx2,
-    grf[BOT][TOP], NULL, 1, dcmps[Gii2P].nx2, FFTW_MEASURE);
+    dcmps[Gii2P0].block_size/dcmps[Gii2P0].nx2, reinterpret_cast<Real*>(grf[BOT][TOP]),
+    NULL, 1, dcmps[Gii2P0].nx2, grf[BOT][TOP], NULL, 1, dcmps[Gii2P].nx2, FFTW_MEASURE);
   fft_x2_forward_[5] = fftw_plan_many_dft_r2c(1, &(dcmps[Gii2P0].nx2),
-    dcmps[Gii2P0].block_size/dcmps[Gii2P0].nx2, ((Real*)(grf[BOT][BOT])), NULL, 1, dcmps[Gii2P0].nx2,
-    grf[BOT][BOT], NULL, 1, dcmps[Gii2P].nx2, FFTW_MEASURE);
+    dcmps[Gii2P0].block_size/dcmps[Gii2P0].nx2, reinterpret_cast<Real*>(grf[BOT][BOT]),
+    NULL, 1, dcmps[Gii2P0].nx2, grf[BOT][BOT], NULL, 1, dcmps[Gii2P].nx2, FFTW_MEASURE);
   fft_x2_forward_[6] = fftw_plan_many_dft_r2c(1, &(dcmps[Gik2P0].nx2),
-    dcmps[Gik2P0].block_size/dcmps[Gik2P0].nx2, ((Real*)(grf[INN][TOP])), NULL, 1, dcmps[Gik2P0].nx2,
-    grf[INN][TOP], NULL, 1, dcmps[Gik2P].nx2, FFTW_MEASURE);
+    dcmps[Gik2P0].block_size/dcmps[Gik2P0].nx2, reinterpret_cast<Real*>(grf[INN][TOP]),
+    NULL, 1, dcmps[Gik2P0].nx2, grf[INN][TOP], NULL, 1, dcmps[Gik2P].nx2, FFTW_MEASURE);
   fft_x2_forward_[7] = fftw_plan_many_dft_r2c(1, &(dcmps[Gik2P0].nx2),
-    dcmps[Gik2P0].block_size/dcmps[Gik2P0].nx2, ((Real*)(grf[INN][BOT])), NULL, 1, dcmps[Gik2P0].nx2,
-    grf[INN][BOT], NULL, 1, dcmps[Gik2P].nx2, FFTW_MEASURE);
+    dcmps[Gik2P0].block_size/dcmps[Gik2P0].nx2, reinterpret_cast<Real*>(grf[INN][BOT]),
+    NULL, 1, dcmps[Gik2P0].nx2, grf[INN][BOT], NULL, 1, dcmps[Gik2P].nx2, FFTW_MEASURE);
   fft_x2_forward_[8] = fftw_plan_many_dft_r2c(1, &(dcmps[Gik2P0].nx2),
-    dcmps[Gik2P0].block_size/dcmps[Gik2P0].nx2, ((Real*)(grf[OUT][TOP])), NULL, 1, dcmps[Gik2P0].nx2,
-    grf[OUT][TOP], NULL, 1, dcmps[Gik2P].nx2, FFTW_MEASURE);
+    dcmps[Gik2P0].block_size/dcmps[Gik2P0].nx2, reinterpret_cast<Real*>(grf[OUT][TOP]),
+    NULL, 1, dcmps[Gik2P0].nx2, grf[OUT][TOP], NULL, 1, dcmps[Gik2P].nx2, FFTW_MEASURE);
   fft_x2_forward_[9] = fftw_plan_many_dft_r2c(1, &(dcmps[Gik2P0].nx2),
-    dcmps[Gik2P0].block_size/dcmps[Gik2P0].nx2, ((Real*)(grf[OUT][BOT])), NULL, 1, dcmps[Gik2P0].nx2,
-    grf[OUT][BOT], NULL, 1, dcmps[Gik2P].nx2, FFTW_MEASURE);
+    dcmps[Gik2P0].block_size/dcmps[Gik2P0].nx2, reinterpret_cast<Real*>(grf[OUT][BOT]),
+    NULL, 1, dcmps[Gik2P0].nx2, grf[OUT][BOT], NULL, 1, dcmps[Gik2P].nx2, FFTW_MEASURE);
   fft_x2_forward_[10] = fftw_plan_many_dft_r2c(1, &(dcmps[Gki2P0].nx2),
-    dcmps[Gki2P0].block_size/dcmps[Gki2P0].nx2, ((Real*)(grf[TOP][INN])), NULL, 1, dcmps[Gki2P0].nx2,
-    grf[TOP][INN], NULL, 1, dcmps[Gki2P].nx2, FFTW_MEASURE);
+    dcmps[Gki2P0].block_size/dcmps[Gki2P0].nx2, reinterpret_cast<Real*>(grf[TOP][INN]),
+    NULL, 1, dcmps[Gki2P0].nx2, grf[TOP][INN], NULL, 1, dcmps[Gki2P].nx2, FFTW_MEASURE);
   fft_x2_forward_[11] = fftw_plan_many_dft_r2c(1, &(dcmps[Gki2P0].nx2),
-    dcmps[Gki2P0].block_size/dcmps[Gki2P0].nx2, ((Real*)(grf[TOP][OUT])), NULL, 1, dcmps[Gki2P0].nx2,
-    grf[TOP][OUT], NULL, 1, dcmps[Gki2P].nx2, FFTW_MEASURE);
+    dcmps[Gki2P0].block_size/dcmps[Gki2P0].nx2, reinterpret_cast<Real*>(grf[TOP][OUT]),
+    NULL, 1, dcmps[Gki2P0].nx2, grf[TOP][OUT], NULL, 1, dcmps[Gki2P].nx2, FFTW_MEASURE);
   fft_x2_forward_[12] = fftw_plan_many_dft_r2c(1, &(dcmps[Gki2P0].nx2),
-    dcmps[Gki2P0].block_size/dcmps[Gki2P0].nx2, ((Real*)(grf[BOT][INN])), NULL, 1, dcmps[Gki2P0].nx2,
-    grf[BOT][INN], NULL, 1, dcmps[Gki2P].nx2, FFTW_MEASURE);
+    dcmps[Gki2P0].block_size/dcmps[Gki2P0].nx2, reinterpret_cast<Real*>(grf[BOT][INN]),
+    NULL, 1, dcmps[Gki2P0].nx2, grf[BOT][INN], NULL, 1, dcmps[Gki2P].nx2, FFTW_MEASURE);
   fft_x2_forward_[13] = fftw_plan_many_dft_r2c(1, &(dcmps[Gki2P0].nx2),
-    dcmps[Gki2P0].block_size/dcmps[Gki2P0].nx2, ((Real*)(grf[BOT][OUT])), NULL, 1, dcmps[Gki2P0].nx2,
-    grf[BOT][OUT], NULL, 1, dcmps[Gki2P].nx2, FFTW_MEASURE);
+    dcmps[Gki2P0].block_size/dcmps[Gki2P0].nx2, reinterpret_cast<Real*>(grf[BOT][OUT]),
+    NULL, 1, dcmps[Gki2P0].nx2, grf[BOT][OUT], NULL, 1, dcmps[Gki2P].nx2, FFTW_MEASURE);
   fft_x2_forward_[14] = fftw_plan_many_dft_r2c(1, &(dcmps[Gkk2P0].nx2),
-    dcmps[Gkk2P0].block_size/dcmps[Gkk2P0].nx2, ((Real*)(grf[INN][INN])), NULL, 1, dcmps[Gkk2P0].nx2,
-    grf[INN][INN], NULL, 1, dcmps[Gkk2P].nx2, FFTW_MEASURE);
+    dcmps[Gkk2P0].block_size/dcmps[Gkk2P0].nx2, reinterpret_cast<Real*>(grf[INN][INN]),
+    NULL, 1, dcmps[Gkk2P0].nx2, grf[INN][INN], NULL, 1, dcmps[Gkk2P].nx2, FFTW_MEASURE);
   fft_x2_forward_[15] = fftw_plan_many_dft_r2c(1, &(dcmps[Gkk2P0].nx2),
-    dcmps[Gkk2P0].block_size/dcmps[Gkk2P0].nx2, ((Real*)(grf[INN][OUT])), NULL, 1, dcmps[Gkk2P0].nx2,
-    grf[INN][OUT], NULL, 1, dcmps[Gkk2P].nx2, FFTW_MEASURE);
+    dcmps[Gkk2P0].block_size/dcmps[Gkk2P0].nx2, reinterpret_cast<Real*>(grf[INN][OUT]),
+    NULL, 1, dcmps[Gkk2P0].nx2, grf[INN][OUT], NULL, 1, dcmps[Gkk2P].nx2, FFTW_MEASURE);
   fft_x2_forward_[16] = fftw_plan_many_dft_r2c(1, &(dcmps[Gkk2P0].nx2),
-    dcmps[Gkk2P0].block_size/dcmps[Gkk2P0].nx2, ((Real*)(grf[OUT][INN])), NULL, 1, dcmps[Gkk2P0].nx2,
-    grf[OUT][INN], NULL, 1, dcmps[Gkk2P].nx2, FFTW_MEASURE);
+    dcmps[Gkk2P0].block_size/dcmps[Gkk2P0].nx2, reinterpret_cast<Real*>(grf[OUT][INN]),
+    NULL, 1, dcmps[Gkk2P0].nx2, grf[OUT][INN], NULL, 1, dcmps[Gkk2P].nx2, FFTW_MEASURE);
   fft_x2_forward_[17] = fftw_plan_many_dft_r2c(1, &(dcmps[Gkk2P0].nx2),
-    dcmps[Gkk2P0].block_size/dcmps[Gkk2P0].nx2, ((Real*)(grf[OUT][OUT])), NULL, 1, dcmps[Gkk2P0].nx2,
-    grf[OUT][OUT], NULL, 1, dcmps[Gkk2P].nx2, FFTW_MEASURE);
+    dcmps[Gkk2P0].block_size/dcmps[Gkk2P0].nx2, reinterpret_cast<Real*>(grf[OUT][OUT]),
+    NULL, 1, dcmps[Gkk2P0].nx2, grf[OUT][OUT], NULL, 1, dcmps[Gkk2P].nx2, FFTW_MEASURE);
 
   fft_x2_backward_[0] = fftw_plan_many_dft_c2r(1, &(dcmps[X2P0].nx2),
     dcmps[X2P0].block_size/dcmps[X2P0].nx2, out_, NULL, 1, dcmps[X2P].nx2,
-    ((Real*)out_), NULL, 1, dcmps[X2P0].nx2, FFTW_MEASURE);
+    reinterpret_cast<Real*>(out_), NULL, 1, dcmps[X2P0].nx2, FFTW_MEASURE);
   fft_x2_backward_[1] = fftw_plan_many_dft_c2r(1, &(dcmps[E2P0].nx2),
     dcmps[E2P0].block_size/dcmps[E2P0].nx2, out2_, NULL, 1, dcmps[E2P].nx2,
-    ((Real*)out2_), NULL, 1, dcmps[E2P0].nx2, FFTW_MEASURE);
+    reinterpret_cast<Real*>(out2_), NULL, 1, dcmps[E2P0].nx2, FFTW_MEASURE);
   fft_x3_r2r_[0] = fftw_plan_many_r2r(1, &(dcmps[X3P].nx3),
-    dcmps[X3P].block_size/dcmps[X3P].nx3, (Real*)in_, NULL, 2,
-    2*dcmps[X3P].nx3, (Real*)in_, NULL, 2, 2*dcmps[X3P].nx3, kind, FFTW_MEASURE);
+    dcmps[X3P].block_size/dcmps[X3P].nx3, reinterpret_cast<Real*>(in_), NULL, 2,
+    2*dcmps[X3P].nx3, reinterpret_cast<Real*>(in_), NULL, 2, 2*dcmps[X3P].nx3, kind,
+    FFTW_MEASURE);
   fft_x3_r2r_[1] = fftw_plan_many_r2r(1, &(dcmps[X3P].nx3),
-    dcmps[X3P].block_size/dcmps[X3P].nx3, (Real*)in_+1, NULL, 2,
-    2*dcmps[X3P].nx3, (Real*)in_+1, NULL, 2, 2*dcmps[X3P].nx3, kind, FFTW_MEASURE);
+    dcmps[X3P].block_size/dcmps[X3P].nx3, reinterpret_cast<Real*>(in_)+1, NULL, 2,
+    2*dcmps[X3P].nx3, reinterpret_cast<Real*>(in_)+1, NULL, 2, 2*dcmps[X3P].nx3, kind,
+    FFTW_MEASURE);
   fft_x3_r2r_[2] = fftw_plan_many_r2r(1, &(dcmps[X3P].nx3),
-    dcmps[X3P].block_size/dcmps[X3P].nx3, (Real*)out_, NULL, 2,
-    2*dcmps[X3P].nx3, (Real*)out_, NULL, 2, 2*dcmps[X3P].nx3, kind, FFTW_MEASURE);
+    dcmps[X3P].block_size/dcmps[X3P].nx3, reinterpret_cast<Real*>(out_), NULL, 2,
+    2*dcmps[X3P].nx3, reinterpret_cast<Real*>(out_), NULL, 2, 2*dcmps[X3P].nx3, kind,
+    FFTW_MEASURE);
   fft_x3_r2r_[3] = fftw_plan_many_r2r(1, &(dcmps[X3P].nx3),
-    dcmps[X3P].block_size/dcmps[X3P].nx3, (Real*)out_+1, NULL, 2,
-    2*dcmps[X3P].nx3, (Real*)out_+1, NULL, 2, 2*dcmps[X3P].nx3, kind, FFTW_MEASURE);
+    dcmps[X3P].block_size/dcmps[X3P].nx3, reinterpret_cast<Real*>(out_)+1, NULL, 2,
+    2*dcmps[X3P].nx3, reinterpret_cast<Real*>(out_)+1, NULL, 2, 2*dcmps[X3P].nx3, kind,
+    FFTW_MEASURE);
   fft_x3_r2r_[4] = fftw_plan_many_r2r(1, &(dcmps[E3P].nx3),
-    dcmps[E3P].block_size/dcmps[E3P].nx3, (Real*)in2_, NULL, 2,
-    2*dcmps[E3P].nx3, (Real*)in2_, NULL, 2, 2*dcmps[E3P].nx3, kind, FFTW_MEASURE);
+    dcmps[E3P].block_size/dcmps[E3P].nx3, reinterpret_cast<Real*>(in2_), NULL, 2,
+    2*dcmps[E3P].nx3, reinterpret_cast<Real*>(in2_), NULL, 2, 2*dcmps[E3P].nx3, kind,
+    FFTW_MEASURE);
   fft_x3_r2r_[5] = fftw_plan_many_r2r(1, &(dcmps[E3P].nx3),
-    dcmps[E3P].block_size/dcmps[E3P].nx3, (Real*)in2_+1, NULL, 2,
-    2*dcmps[E3P].nx3, (Real*)in2_+1, NULL, 2, 2*dcmps[E3P].nx3, kind, FFTW_MEASURE);
+    dcmps[E3P].block_size/dcmps[E3P].nx3, reinterpret_cast<Real*>(in2_)+1, NULL, 2,
+    2*dcmps[E3P].nx3, reinterpret_cast<Real*>(in2_)+1, NULL, 2, 2*dcmps[E3P].nx3, kind,
+    FFTW_MEASURE);
   fft_x3_r2r_[6] = fftw_plan_many_r2r(1, &(dcmps[E3P].nx3),
-    dcmps[E3P].block_size/dcmps[E3P].nx3, (Real*)out2_, NULL, 2,
-    2*dcmps[E3P].nx3, (Real*)out2_, NULL, 2, 2*dcmps[E3P].nx3, kind, FFTW_MEASURE);
+    dcmps[E3P].block_size/dcmps[E3P].nx3, reinterpret_cast<Real*>(out2_), NULL, 2,
+    2*dcmps[E3P].nx3, reinterpret_cast<Real*>(out2_), NULL, 2, 2*dcmps[E3P].nx3, kind,
+    FFTW_MEASURE);
   fft_x3_r2r_[7] = fftw_plan_many_r2r(1, &(dcmps[E3P].nx3),
-    dcmps[E3P].block_size/dcmps[E3P].nx3, (Real*)out2_+1, NULL, 2,
-    2*dcmps[E3P].nx3, (Real*)out2_+1, NULL, 2, 2*dcmps[E3P].nx3, kind, FFTW_MEASURE);
+    dcmps[E3P].block_size/dcmps[E3P].nx3, reinterpret_cast<Real*>(out2_)+1, NULL, 2,
+    2*dcmps[E3P].nx3, reinterpret_cast<Real*>(out2_)+1, NULL, 2, 2*dcmps[E3P].nx3, kind,
+    FFTW_MEASURE);
 
   RmpPlan[XB][X2P0] = remap_3d_create_plan(MPI_COMM_WORLD,dcmps[XB].is,
     dcmps[XB].ie, dcmps[XB].js, dcmps[XB].je, dcmps[XB].ks, dcmps[XB].ke,
@@ -3006,22 +3003,22 @@ OBCGravityCyl::OBCGravityCyl(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
 
   RmpPlan[Gii_BLOCK][Gii2P0] = remap_3d_create_plan(MPI_COMM_WORLD, dcmps[Gii_BLOCK].js,
     dcmps[Gii_BLOCK].je, dcmps[Gii_BLOCK].ks, dcmps[Gii_BLOCK].ke, dcmps[Gii_BLOCK].is,
-    dcmps[Gii_BLOCK].ie, dcmps[Gii2P0].js, dcmps[Gii2P0].je, dcmps[Gii2P0].ks, dcmps[Gii2P0].ke,
-    dcmps[Gii2P0].is, dcmps[Gii2P0].ie, 1, 0, 0, 2);
+    dcmps[Gii_BLOCK].ie, dcmps[Gii2P0].js, dcmps[Gii2P0].je, dcmps[Gii2P0].ks,
+    dcmps[Gii2P0].ke, dcmps[Gii2P0].is, dcmps[Gii2P0].ie, 1, 0, 0, 2);
   RmpPlan[Gik_BLOCK][Gik2P0] = remap_3d_create_plan(MPI_COMM_WORLD, dcmps[Gik_BLOCK].js,
     dcmps[Gik_BLOCK].je, dcmps[Gik_BLOCK].ks, dcmps[Gik_BLOCK].ke, dcmps[Gik_BLOCK].is,
-    dcmps[Gik_BLOCK].ie, dcmps[Gik2P0].js, dcmps[Gik2P0].je, dcmps[Gik2P0].ks, dcmps[Gik2P0].ke,
-    dcmps[Gik2P0].is, dcmps[Gik2P0].ie, 1, 0, 0, 2);
+    dcmps[Gik_BLOCK].ie, dcmps[Gik2P0].js, dcmps[Gik2P0].je, dcmps[Gik2P0].ks,
+    dcmps[Gik2P0].ke, dcmps[Gik2P0].is, dcmps[Gik2P0].ie, 1, 0, 0, 2);
   RmpPlan[Gki_BLOCK][Gki2P0] = remap_3d_create_plan(MPI_COMM_WORLD, dcmps[Gki_BLOCK].js,
     dcmps[Gki_BLOCK].je, dcmps[Gki_BLOCK].is, dcmps[Gki_BLOCK].ie, dcmps[Gki_BLOCK].ks,
-    dcmps[Gki_BLOCK].ke, dcmps[Gki2P0].js, dcmps[Gki2P0].je, dcmps[Gki2P0].is, dcmps[Gki2P0].ie,
-    dcmps[Gki2P0].ks, dcmps[Gki2P0].ke, 1, 0, 0, 2);
+    dcmps[Gki_BLOCK].ke, dcmps[Gki2P0].js, dcmps[Gki2P0].je, dcmps[Gki2P0].is,
+    dcmps[Gki2P0].ie, dcmps[Gki2P0].ks, dcmps[Gki2P0].ke, 1, 0, 0, 2);
   RmpPlan[Gkk_BLOCK][Gkk2P0] = remap_3d_create_plan(MPI_COMM_WORLD, dcmps[Gkk_BLOCK].js,
     dcmps[Gkk_BLOCK].je, dcmps[Gkk_BLOCK].is, dcmps[Gkk_BLOCK].ie, dcmps[Gkk_BLOCK].ks,
-    dcmps[Gkk_BLOCK].ke, dcmps[Gkk2P0].js, dcmps[Gkk2P0].je, dcmps[Gkk2P0].is, dcmps[Gkk2P0].ie,
-    dcmps[Gkk2P0].ks, dcmps[Gkk2P0].ke, 1, 0, 0, 2);
+    dcmps[Gkk_BLOCK].ke, dcmps[Gkk2P0].js, dcmps[Gkk2P0].je, dcmps[Gkk2P0].is,
+    dcmps[Gkk2P0].ie, dcmps[Gkk2P0].ks, dcmps[Gkk2P0].ke, 1, 0, 0, 2);
 
-  for (int i=TOP;i<=BOT;++i) {
+  for (int i=TOP; i<=BOT; ++i) {
     BndryRmpPlan[i][BLOCK][FFT_LONG] = remap_2d_create_plan(MPI_COMM_WORLD,
       bndry_dcmps[i][BLOCK].is, bndry_dcmps[i][BLOCK].ie,
       bndry_dcmps[i][BLOCK].js, bndry_dcmps[i][BLOCK].je,
@@ -3054,7 +3051,7 @@ OBCGravityCyl::OBCGravityCyl(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
       bndry_dcmps[i][FFT_LONG].block_size/Nx2, psi_fft[i], NULL, 1, hNx2+1,
       psi[i], NULL, 1, Nx2, FFTW_MEASURE);
   }
-  for (int i=INN;i<=OUT;++i) {
+  for (int i=INN; i<=OUT; ++i) {
     BndryRmpPlan[i][BLOCK][FFT_LONG] = remap_2d_create_plan(MPI_COMM_WORLD,
       bndry_dcmps[i][BLOCK].js, bndry_dcmps[i][BLOCK].je,
       bndry_dcmps[i][BLOCK].ks, bndry_dcmps[i][BLOCK].ke,
@@ -3098,15 +3095,13 @@ OBCGravityCyl::OBCGravityCyl(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
   dx1f2_.DeleteAthenaArray();
   x1v2_.DeleteAthenaArray();
   dx1v2_.DeleteAthenaArray();
-  for (int i=1;i<18;++i) fftw_destroy_plan(fft_x2_forward_[i]);
+  for (int i=1; i<18; ++i) fftw_destroy_plan(fft_x2_forward_[i]);
   fftw_destroy_plan(fft_x2_backward_[1]);
 }
 
 // OBCGravityCyl destructor
-OBCGravityCyl::~OBCGravityCyl()
-{
-
-  for (int i=0;i<4;++i) {
+OBCGravityCyl::~OBCGravityCyl() {
+  for (int i=0; i<4; ++i) {
     fftw_free(psi[i]);
     fftw_free(psi2[i]);
     fftw_free(sigma[i]);
@@ -3122,12 +3117,12 @@ OBCGravityCyl::~OBCGravityCyl()
     remap_2d_destroy_plan(BndryRmpPlan[i][PSI][FFT_SHORT]);
     remap_2d_destroy_plan(BndryRmpPlan[i][FFT_LONG][BLOCK]);
   }
-  for (int i=TOP;i<=OUT;++i) {
-    for (int j=TOP;j<=OUT;++j) {
+  for (int i=TOP; i<=OUT; ++i) {
+    for (int j=TOP; j<=OUT; ++j) {
       fftw_free(grf[i][j]);
     }
   }
-  for (int i=0;i<8;++i) fftw_destroy_plan(fft_x3_r2r_[i]);
+  for (int i=0; i<8; ++i) fftw_destroy_plan(fft_x3_r2r_[i]);
   fftw_free(in_);
   fftw_free(out_);
   fftw_free(buf_);
@@ -3168,18 +3163,16 @@ OBCGravityCyl::~OBCGravityCyl()
   remap_3d_destroy_plan(RmpPlan[Gik_BLOCK][Gik2P0]);
   remap_3d_destroy_plan(RmpPlan[Gki_BLOCK][Gki2P0]);
   remap_3d_destroy_plan(RmpPlan[Gkk_BLOCK][Gkk2P0]);
-  for (int i=0;i<4;++i) {
+  for (int i=0; i<4; ++i) {
     if (bndcomm[i] != MPI_COMM_NULL) {
       MPI_Comm_free(&(bndcomm[i]));
     }
   }
   MPI_Comm_free(&x1comm);
   MPI_Comm_free(&x3comm);
-
 }
 
-void OBCGravityCyl::FillCntGrf()
-{
+void OBCGravityCyl::FillCntGrf() {
   int idx, idx2, gip, gjp, gkp;
   int gi,gj,gk;
   Real R, Rp, rds, psi, dV;
@@ -3187,78 +3180,94 @@ void OBCGravityCyl::FillCntGrf()
     std::cout << "Calculating continuous Green's functions..." << std::endl;
   gjp = 0;
 
-  for (int i=0;i<dcmps[Gii2P0].nx1;++i) {
-    for (int ip=0;ip<dcmps[Gii2P0].nx3;++ip) {
-      for (int j=0;j<dcmps[Gii2P0].nx2;++j) {
+  for (int i=0; i<dcmps[Gii2P0].nx1; ++i) {
+    for (int ip=0; ip<dcmps[Gii2P0].nx3; ++ip) {
+      for (int j=0; j<dcmps[Gii2P0].nx2; ++j) {
         idx = j + dcmps[Gii2P0].nx2*(ip + dcmps[Gii2P0].nx3*i);
         gj = dcmps[Gii2P0].js+j;
-        gip = dcmps[Gii2P0].ks + ip; 
+        gip = dcmps[Gii2P0].ks + ip;
         gi = dcmps[Gii2P0].is+i;
         dV = 0.5*(SQR(x1f_(NGHOST+gip+1)) - SQR(x1f_(NGHOST+gip)))*dx2_*dx3_;
         Rp = x1v_(NGHOST+gip);
         R  = x1v_(NGHOST+gi);
         gkp = Nx3;
         gk = Nx3;
-        rds = sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
-        if (rds == 0) (((Real*)(grf[TOP][TOP])))[idx] = 0;
-        else ((Real*)(grf[TOP][TOP]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
+        rds = std::sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
+        if (rds == 0)
+          (reinterpret_cast<Real*>(grf[TOP][TOP]))[idx] = 0;
+        else
+          (reinterpret_cast<Real*>(grf[TOP][TOP]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
         gkp = Nx3;
         gk = -1;
-        rds = sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
-        if (rds == 0) ((Real*)(grf[TOP][BOT]))[idx] = 0;
-        else ((Real*)(grf[TOP][BOT]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
+        rds = std::sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
+        if (rds == 0)
+          (reinterpret_cast<Real*>(grf[TOP][BOT]))[idx] = 0;
+        else
+          (reinterpret_cast<Real*>(grf[TOP][BOT]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
         gkp = -1;
         gk = Nx3;
-        rds = sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
-        if (rds == 0) ((Real*)(grf[BOT][TOP]))[idx] = 0;
-        else ((Real*)(grf[BOT][TOP]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
+        rds = std::sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
+        if (rds == 0)
+          (reinterpret_cast<Real*>(grf[BOT][TOP]))[idx] = 0;
+        else
+          (reinterpret_cast<Real*>(grf[BOT][TOP]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
         gkp = -1;
         gk = -1;
-        rds = sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
-        if (rds == 0) ((Real*)(grf[BOT][BOT]))[idx] = 0;
-        else ((Real*)(grf[BOT][BOT]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
+        rds = std::sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
+        if (rds == 0)
+          (reinterpret_cast<Real*>(grf[BOT][BOT]))[idx] = 0;
+        else
+          (reinterpret_cast<Real*>(grf[BOT][BOT]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
       }
     }
   }
-  for (int ip=0;ip<dcmps[Gki2P0].nx3;++ip) {
-    for (int k=0;k<dcmps[Gki2P0].nx1;++k) {
-      for (int j=0;j<dcmps[Gki2P0].nx2;++j) {
+  for (int ip=0; ip<dcmps[Gki2P0].nx3; ++ip) {
+    for (int k=0; k<dcmps[Gki2P0].nx1; ++k) {
+      for (int j=0; j<dcmps[Gki2P0].nx2; ++j) {
         idx = j + dcmps[Gki2P0].nx2*(k + dcmps[Gki2P0].nx1*ip);
         gj = dcmps[Gki2P0].js + j;
-        gk = dcmps[Gki2P0].is + k; 
+        gk = dcmps[Gki2P0].is + k;
         gip = dcmps[Gki2P0].ks + ip;
         dV = 0.5*(SQR(x1f_(NGHOST+gip+1)) - SQR(x1f_(NGHOST+gip)))*dx2_*dx3_;
         Rp = x1v_(NGHOST+gip);
         gkp = Nx3;
         gi = -1;
         R  = x1v_(NGHOST+gi);
-        rds = sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
-        if (rds == 0) ((Real*)(grf[TOP][INN]))[idx] = 0;
-        else ((Real*)(grf[TOP][INN]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
+        rds = std::sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
+        if (rds == 0)
+          (reinterpret_cast<Real*>(grf[TOP][INN]))[idx] = 0;
+        else
+          (reinterpret_cast<Real*>(grf[TOP][INN]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
         gkp = Nx3;
         gi = Nx1;
         R  = x1v_(NGHOST+gi);
-        rds = sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
-        if (rds == 0) ((Real*)(grf[TOP][OUT]))[idx] = 0;
-        else ((Real*)(grf[TOP][OUT]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
+        rds = std::sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
+        if (rds == 0)
+          (reinterpret_cast<Real*>(grf[TOP][OUT]))[idx] = 0;
+        else
+          (reinterpret_cast<Real*>(grf[TOP][OUT]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
         gkp = -1;
         gi = -1;
         R  = x1v_(NGHOST+gi);
-        rds = sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
-        if (rds == 0) ((Real*)(grf[BOT][INN]))[idx] = 0;
-        else ((Real*)(grf[BOT][INN]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
+        rds = std::sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
+        if (rds == 0)
+          (reinterpret_cast<Real*>(grf[BOT][INN]))[idx] = 0;
+        else
+          (reinterpret_cast<Real*>(grf[BOT][INN]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
         gkp = -1;
         gi = Nx1;
         R  = x1v_(NGHOST+gi);
-        rds = sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
-        if (rds == 0) ((Real*)(grf[BOT][OUT]))[idx] = 0;
-        else ((Real*)(grf[BOT][OUT]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
+        rds = std::sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
+        if (rds == 0)
+          (reinterpret_cast<Real*>(grf[BOT][OUT]))[idx] = 0;
+        else
+          (reinterpret_cast<Real*>(grf[BOT][OUT]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
       }
     }
   }
-  for (int i=0;i<dcmps[Gik2P0].nx1;++i) {
-    for (int kp=0;kp<dcmps[Gik2P0].nx3;++kp) {
-      for (int j=0;j<dcmps[Gik2P0].nx2;++j) {
+  for (int i=0; i<dcmps[Gik2P0].nx1; ++i) {
+    for (int kp=0; kp<dcmps[Gik2P0].nx3; ++kp) {
+      for (int j=0; j<dcmps[Gik2P0].nx2; ++j) {
         idx = j + dcmps[Gik2P0].nx2*(kp + dcmps[Gik2P0].nx3*i);
         gj = dcmps[Gik2P0].js + j;
         gkp = dcmps[Gik2P0].ks + kp;
@@ -3268,280 +3277,359 @@ void OBCGravityCyl::FillCntGrf()
         gk = Nx3;
         dV = 0.5*(SQR(x1f_(NGHOST+gip+1)) - SQR(x1f_(NGHOST+gip)))*dx2_*dx3_;
         Rp = x1v_(NGHOST+gip);
-        rds = sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
-        if (rds==0) ((Real*)(grf[INN][TOP]))[idx] = 0;
-        else ((Real*)(grf[INN][TOP]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
+        rds = std::sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
+        if (rds==0)
+          (reinterpret_cast<Real*>(grf[INN][TOP]))[idx] = 0;
+        else
+          (reinterpret_cast<Real*>(grf[INN][TOP]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
         gk = -1;
-        rds = sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
-        if (rds==0) ((Real*)(grf[INN][BOT]))[idx] = 0;
-        else ((Real*)(grf[INN][BOT]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
+        rds = std::sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
+        if (rds==0)
+          (reinterpret_cast<Real*>(grf[INN][BOT]))[idx] = 0;
+        else
+          (reinterpret_cast<Real*>(grf[INN][BOT]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
         gip = Nx1;
         gk = Nx3;
         dV = 0.5*(SQR(x1f_(NGHOST+gip+1)) - SQR(x1f_(NGHOST+gip)))*dx2_*dx3_;
         Rp = x1v_(NGHOST+gip);
-        rds = sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
-        if (rds==0) ((Real*)(grf[OUT][TOP]))[idx] = 0;
-        else ((Real*)(grf[OUT][TOP]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
+        rds = std::sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
+        if (rds==0)
+          (reinterpret_cast<Real*>(grf[OUT][TOP]))[idx] = 0;
+        else
+          (reinterpret_cast<Real*>(grf[OUT][TOP]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
         gk = -1;
-        rds = sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
-        if (rds==0) ((Real*)(grf[OUT][BOT]))[idx] = 0;
-        else ((Real*)(grf[OUT][BOT]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
+        rds = std::sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
+        if (rds==0)
+          (reinterpret_cast<Real*>(grf[OUT][BOT]))[idx] = 0;
+        else
+          (reinterpret_cast<Real*>(grf[OUT][BOT]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
       }
     }
   }
-  for (int kp=0;kp<dcmps[Gkk2P0].nx3;++kp) {
-    for (int k=0;k<dcmps[Gkk2P0].nx1;++k) {
-      for (int j=0;j<dcmps[Gkk2P0].nx2;++j) {
+  for (int kp=0; kp<dcmps[Gkk2P0].nx3; ++kp) {
+    for (int k=0; k<dcmps[Gkk2P0].nx1; ++k) {
+      for (int j=0; j<dcmps[Gkk2P0].nx2; ++j) {
         idx = j + dcmps[Gkk2P0].nx2*(k + dcmps[Gkk2P0].nx1*kp);
         gj = dcmps[Gkk2P0].js + j;
         gk = dcmps[Gkk2P0].is + k;
         gkp = dcmps[Gkk2P0].ks + kp;
-        
+
         gi = -1;
         gip = -1;
         R  = x1v_(NGHOST+gi);
         Rp = x1v_(NGHOST+gip);
         dV = 0.5*(SQR(x1f_(NGHOST+gip+1)) - SQR(x1f_(NGHOST+gip)))*dx2_*dx3_;
-        rds = sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
-        if(rds==0) ((Real*)(grf[INN][INN]))[idx] = 0;
-        else ((Real*)(grf[INN][INN]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
+        rds = std::sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
+        if (rds==0)
+          (reinterpret_cast<Real*>(grf[INN][INN]))[idx] = 0;
+        else
+          (reinterpret_cast<Real*>(grf[INN][INN]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
 
         gi = Nx1;
         gip = -1;
         R  = x1v_(NGHOST+gi);
         Rp = x1v_(NGHOST+gip);
         dV = 0.5*(SQR(x1f_(NGHOST+gip+1)) - SQR(x1f_(NGHOST+gip)))*dx2_*dx3_;
-        rds = sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
-        if (rds==0) ((Real*)(grf[INN][OUT]))[idx] = 0;
-        else ((Real*)(grf[INN][OUT]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
+        rds = std::sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
+        if (rds==0)
+          (reinterpret_cast<Real*>(grf[INN][OUT]))[idx] = 0;
+        else
+          (reinterpret_cast<Real*>(grf[INN][OUT]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
 
         gi = -1;
         gip = Nx1;
         R  = x1v_(NGHOST+gi);
         Rp = x1v_(NGHOST+gip);
         dV = 0.5*(SQR(x1f_(NGHOST+gip+1)) - SQR(x1f_(NGHOST+gip)))*dx2_*dx3_;
-        rds = sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
-        if (rds==0) ((Real*)(grf[OUT][INN]))[idx] = 0;
-        else ((Real*)(grf[OUT][INN]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
+        rds = std::sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
+        if (rds==0)
+          (reinterpret_cast<Real*>(grf[OUT][INN]))[idx] = 0;
+        else
+          (reinterpret_cast<Real*>(grf[OUT][INN]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
 
         gi = Nx1;
         gip = Nx1;
         R  = x1v_(NGHOST+gi);
         Rp = x1v_(NGHOST+gip);
         dV = 0.5*(SQR(x1f_(NGHOST+gip+1)) - SQR(x1f_(NGHOST+gip)))*dx2_*dx3_;
-        rds = sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
-        if (rds==0) ((Real*)(grf[OUT][OUT]))[idx] = 0;
-        else ((Real*)(grf[OUT][OUT]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
+        rds = std::sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)) + SQR(dx3_*(gk-gkp)));
+        if (rds==0)
+          (reinterpret_cast<Real*>(grf[OUT][OUT]))[idx] = 0;
+        else
+          (reinterpret_cast<Real*>(grf[OUT][OUT]))[idx] = -(four_pi_G/4.0/PI)*dV/rds;
       }
     }
   }
 
-  for (int i=2;i<=17;++i)
+  for (int i=2; i<=17; ++i)
     fftw_execute(fft_x2_forward_[i]);
-  remap_3d((Real*)grf[TOP][TOP], (Real*)grf[TOP][TOP], (Real*)buf_, RmpPlan[Gii2P][Gii]);
-  remap_3d((Real*)grf[TOP][BOT], (Real*)grf[TOP][BOT], (Real*)buf_, RmpPlan[Gii2P][Gii]);
-  remap_3d((Real*)grf[BOT][TOP], (Real*)grf[BOT][TOP], (Real*)buf_, RmpPlan[Gii2P][Gii]);
-  remap_3d((Real*)grf[BOT][BOT], (Real*)grf[BOT][BOT], (Real*)buf_, RmpPlan[Gii2P][Gii]);
-  remap_3d((Real*)grf[INN][TOP], (Real*)grf[INN][TOP], (Real*)buf_, RmpPlan[Gik2P][Gik]);
-  remap_3d((Real*)grf[INN][BOT], (Real*)grf[INN][BOT], (Real*)buf_, RmpPlan[Gik2P][Gik]);
-  remap_3d((Real*)grf[OUT][TOP], (Real*)grf[OUT][TOP], (Real*)buf_, RmpPlan[Gik2P][Gik]);
-  remap_3d((Real*)grf[OUT][BOT], (Real*)grf[OUT][BOT], (Real*)buf_, RmpPlan[Gik2P][Gik]);
-  remap_3d((Real*)grf[TOP][INN], (Real*)grf[TOP][INN], (Real*)buf_, RmpPlan[Gki2P][Gki]);
-  remap_3d((Real*)grf[TOP][OUT], (Real*)grf[TOP][OUT], (Real*)buf_, RmpPlan[Gki2P][Gki]);
-  remap_3d((Real*)grf[BOT][INN], (Real*)grf[BOT][INN], (Real*)buf_, RmpPlan[Gki2P][Gki]);
-  remap_3d((Real*)grf[BOT][OUT], (Real*)grf[BOT][OUT], (Real*)buf_, RmpPlan[Gki2P][Gki]);
-  remap_3d((Real*)grf[INN][INN], (Real*)grf[INN][INN], (Real*)buf_, RmpPlan[Gkk2P][Gkk]);
-  remap_3d((Real*)grf[INN][OUT], (Real*)grf[INN][OUT], (Real*)buf_, RmpPlan[Gkk2P][Gkk]);
-  remap_3d((Real*)grf[OUT][INN], (Real*)grf[OUT][INN], (Real*)buf_, RmpPlan[Gkk2P][Gkk]);
-  remap_3d((Real*)grf[OUT][OUT], (Real*)grf[OUT][OUT], (Real*)buf_, RmpPlan[Gkk2P][Gkk]);
+  remap_3d(reinterpret_cast<Real*>(grf[TOP][TOP]), reinterpret_cast<Real*>(grf[TOP][TOP]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gii2P][Gii]);
+  remap_3d(reinterpret_cast<Real*>(grf[TOP][BOT]), reinterpret_cast<Real*>(grf[TOP][BOT]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gii2P][Gii]);
+  remap_3d(reinterpret_cast<Real*>(grf[BOT][TOP]), reinterpret_cast<Real*>(grf[BOT][TOP]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gii2P][Gii]);
+  remap_3d(reinterpret_cast<Real*>(grf[BOT][BOT]), reinterpret_cast<Real*>(grf[BOT][BOT]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gii2P][Gii]);
+  remap_3d(reinterpret_cast<Real*>(grf[INN][TOP]), reinterpret_cast<Real*>(grf[INN][TOP]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gik2P][Gik]);
+  remap_3d(reinterpret_cast<Real*>(grf[INN][BOT]), reinterpret_cast<Real*>(grf[INN][BOT]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gik2P][Gik]);
+  remap_3d(reinterpret_cast<Real*>(grf[OUT][TOP]), reinterpret_cast<Real*>(grf[OUT][TOP]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gik2P][Gik]);
+  remap_3d(reinterpret_cast<Real*>(grf[OUT][BOT]), reinterpret_cast<Real*>(grf[OUT][BOT]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gik2P][Gik]);
+  remap_3d(reinterpret_cast<Real*>(grf[TOP][INN]), reinterpret_cast<Real*>(grf[TOP][INN]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gki2P][Gki]);
+  remap_3d(reinterpret_cast<Real*>(grf[TOP][OUT]), reinterpret_cast<Real*>(grf[TOP][OUT]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gki2P][Gki]);
+  remap_3d(reinterpret_cast<Real*>(grf[BOT][INN]), reinterpret_cast<Real*>(grf[BOT][INN]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gki2P][Gki]);
+  remap_3d(reinterpret_cast<Real*>(grf[BOT][OUT]), reinterpret_cast<Real*>(grf[BOT][OUT]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gki2P][Gki]);
+  remap_3d(reinterpret_cast<Real*>(grf[INN][INN]), reinterpret_cast<Real*>(grf[INN][INN]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gkk2P][Gkk]);
+  remap_3d(reinterpret_cast<Real*>(grf[INN][OUT]), reinterpret_cast<Real*>(grf[INN][OUT]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gkk2P][Gkk]);
+  remap_3d(reinterpret_cast<Real*>(grf[OUT][INN]), reinterpret_cast<Real*>(grf[OUT][INN]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gkk2P][Gkk]);
+  remap_3d(reinterpret_cast<Real*>(grf[OUT][OUT]), reinterpret_cast<Real*>(grf[OUT][OUT]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gkk2P][Gkk]);
 }
 
-void OBCGravityCyl::FillDscGrf()
-{
+void OBCGravityCyl::FillDscGrf() {
   int idx, idx2, ip, kp, gip, gkp;
   if (Globals::my_rank == 0)
     std::cout << "Calculating discrete Green's functions..." << std::endl;
 
-  // surface charge at top boundary 
+  // surface charge at top boundary
   gkp = Nx3;
-  for (gip=0;gip<Nx1;++gip) {
+  for (gip=0; gip<Nx1; ++gip) {
     CalcGrf(gip, gkp);
     // If this proc is responsible for the ip index, store the Green's function
     if ((gip >= dcmps[Gii_BLOCK].ks)&&(gip <= dcmps[Gii_BLOCK].ke)) {
       ip = gip - dcmps[Gii_BLOCK].ks;
-      for (int i=0;i<dcmps[Gii_BLOCK].nx1;++i) {
-        for (int j=0;j<dcmps[Gii_BLOCK].nx2;++j) {
+      for (int i=0; i<dcmps[Gii_BLOCK].nx1; ++i) {
+        for (int j=0; j<dcmps[Gii_BLOCK].nx2; ++j) {
           idx = j + dcmps[Gii_BLOCK].nx2*(ip + dcmps[Gii_BLOCK].nx3*i);
           idx2 = j + dcmps[Gii_BLOCK].nx2*(dcmps[Gii_BLOCK].is+i+noffset1_);
-          ((Real*)(grf[TOP][TOP]))[idx] = psi2[TOP][idx2];
-          ((Real*)(grf[TOP][BOT]))[idx] = psi2[BOT][idx2];
+          (reinterpret_cast<Real*>(grf[TOP][TOP]))[idx] = psi2[TOP][idx2];
+          (reinterpret_cast<Real*>(grf[TOP][BOT]))[idx] = psi2[BOT][idx2];
         }
       }
     }
     if ((gip >= dcmps[Gki_BLOCK].ks)&&(gip <= dcmps[Gki_BLOCK].ke)) {
       ip = gip - dcmps[Gki_BLOCK].ks;
-      for (int k=0;k<dcmps[Gki_BLOCK].nx1;++k) {
-        for (int j=0;j<dcmps[Gki_BLOCK].nx2;++j) {
+      for (int k=0; k<dcmps[Gki_BLOCK].nx1; ++k) {
+        for (int j=0; j<dcmps[Gki_BLOCK].nx2; ++j) {
           idx = j + dcmps[Gki_BLOCK].nx2*(k + dcmps[Gki_BLOCK].nx1*ip);
           idx2 = j + dcmps[Gki_BLOCK].nx2*(dcmps[Gki_BLOCK].is+k+noffset2_);
-          ((Real*)(grf[TOP][INN]))[idx] = psi2[INN][idx2];
-          ((Real*)(grf[TOP][OUT]))[idx] = psi2[OUT][idx2];
+          (reinterpret_cast<Real*>(grf[TOP][INN]))[idx] = psi2[INN][idx2];
+          (reinterpret_cast<Real*>(grf[TOP][OUT]))[idx] = psi2[OUT][idx2];
         }
       }
     }
     if (Globals::my_rank == 0) std::cout << "top boundary gip = " << gip << std::endl;
   }
-  // surface charge at bottom boundary 
+  // surface charge at bottom boundary
   gkp = -1;
-  for (gip=0;gip<Nx1;++gip) {
+  for (gip=0; gip<Nx1; ++gip) {
     CalcGrf(gip, gkp);
     // If this proc is responsible for the ip index, store the Green's function
     if ((gip >= dcmps[Gii_BLOCK].ks)&&(gip <= dcmps[Gii_BLOCK].ke)) {
       ip = gip - dcmps[Gii_BLOCK].ks;
-      for (int i=0;i<dcmps[Gii_BLOCK].nx1;++i) {
-        for (int j=0;j<dcmps[Gii_BLOCK].nx2;++j) {
+      for (int i=0; i<dcmps[Gii_BLOCK].nx1; ++i) {
+        for (int j=0; j<dcmps[Gii_BLOCK].nx2; ++j) {
           idx = j + dcmps[Gii_BLOCK].nx2*(ip + dcmps[Gii_BLOCK].nx3*i);
           idx2 = j + dcmps[Gii_BLOCK].nx2*(dcmps[Gii_BLOCK].is+i+noffset1_);
-          ((Real*)(grf[BOT][TOP]))[idx] = psi2[TOP][idx2];
-          ((Real*)(grf[BOT][BOT]))[idx] = psi2[BOT][idx2];
+          (reinterpret_cast<Real*>(grf[BOT][TOP]))[idx] = psi2[TOP][idx2];
+          (reinterpret_cast<Real*>(grf[BOT][BOT]))[idx] = psi2[BOT][idx2];
         }
       }
     }
     if ((gip >= dcmps[Gki_BLOCK].ks)&&(gip <= dcmps[Gki_BLOCK].ke)) {
       ip = gip - dcmps[Gki_BLOCK].ks;
-      for (int k=0;k<dcmps[Gki_BLOCK].nx1;++k) {
-        for (int j=0;j<dcmps[Gki_BLOCK].nx2;++j) {
+      for (int k=0; k<dcmps[Gki_BLOCK].nx1; ++k) {
+        for (int j=0; j<dcmps[Gki_BLOCK].nx2; ++j) {
           idx = j + dcmps[Gki_BLOCK].nx2*(k + dcmps[Gki_BLOCK].nx1*ip);
           idx2 = j + dcmps[Gki_BLOCK].nx2*(dcmps[Gki_BLOCK].is+k+noffset2_);
-          ((Real*)(grf[BOT][INN]))[idx] = psi2[INN][idx2];
-          ((Real*)(grf[BOT][OUT]))[idx] = psi2[OUT][idx2];
+          (reinterpret_cast<Real*>(grf[BOT][INN]))[idx] = psi2[INN][idx2];
+          (reinterpret_cast<Real*>(grf[BOT][OUT]))[idx] = psi2[OUT][idx2];
         }
       }
     }
     if (Globals::my_rank == 0) std::cout << "bot boundary gip = " << gip << std::endl;
   }
-  // surface charge at inner boundary 
+  // surface charge at inner boundary
   gip = -1;
-  for (gkp=0;gkp<Nx3;++gkp) {
+  for (gkp=0; gkp<Nx3; ++gkp) {
     CalcGrf(gip, gkp);
     // If this proc is responsible for the ip index, store the Green's function
     if ((gkp >= dcmps[Gik_BLOCK].ks)&&(gkp <= dcmps[Gik_BLOCK].ke)) {
       kp = gkp - dcmps[Gik_BLOCK].ks;
-      for (int i=0;i<dcmps[Gik_BLOCK].nx1;++i) {
-        for (int j=0;j<dcmps[Gik_BLOCK].nx2;++j) {
+      for (int i=0; i<dcmps[Gik_BLOCK].nx1; ++i) {
+        for (int j=0; j<dcmps[Gik_BLOCK].nx2; ++j) {
           idx = j + dcmps[Gik_BLOCK].nx2*(kp + dcmps[Gik_BLOCK].nx3*i);
           idx2 = j + dcmps[Gii_BLOCK].nx2*(dcmps[Gii_BLOCK].is+i+noffset1_);
-          ((Real*)(grf[INN][TOP]))[idx] = psi2[TOP][idx2];
-          ((Real*)(grf[INN][BOT]))[idx] = psi2[BOT][idx2];
+          (reinterpret_cast<Real*>(grf[INN][TOP]))[idx] = psi2[TOP][idx2];
+          (reinterpret_cast<Real*>(grf[INN][BOT]))[idx] = psi2[BOT][idx2];
         }
       }
     }
     if ((gkp >= dcmps[Gkk_BLOCK].ks)&&(gkp <= dcmps[Gkk_BLOCK].ke)) {
       kp = gkp - dcmps[Gkk_BLOCK].ks;
-      for (int k=0;k<dcmps[Gkk_BLOCK].nx1;++k) {
-        for (int j=0;j<dcmps[Gkk_BLOCK].nx2;++j) {
+      for (int k=0; k<dcmps[Gkk_BLOCK].nx1; ++k) {
+        for (int j=0; j<dcmps[Gkk_BLOCK].nx2; ++j) {
           idx = j + dcmps[Gkk_BLOCK].nx2*(k + dcmps[Gkk_BLOCK].nx1*kp);
           idx2 = j + dcmps[Gki_BLOCK].nx2*(dcmps[Gki_BLOCK].is+k+noffset2_);
-          ((Real*)(grf[INN][INN]))[idx] = psi2[INN][idx2];
-          ((Real*)(grf[INN][OUT]))[idx] = psi2[OUT][idx2];
+          (reinterpret_cast<Real*>(grf[INN][INN]))[idx] = psi2[INN][idx2];
+          (reinterpret_cast<Real*>(grf[INN][OUT]))[idx] = psi2[OUT][idx2];
         }
       }
     }
     if (Globals::my_rank == 0) std::cout << "inn boundary gkp = " << gkp << std::endl;
   }
-  // surface charge at outer boundary 
+  // surface charge at outer boundary
   gip = Nx1;
-  for (gkp=0;gkp<Nx3;++gkp) {
+  for (gkp=0; gkp<Nx3; ++gkp) {
     CalcGrf(gip, gkp);
     // If this proc is responsible for the ip index, store the Green's function
     if ((gkp >= dcmps[Gik_BLOCK].ks)&&(gkp <= dcmps[Gik_BLOCK].ke)) {
       kp = gkp - dcmps[Gik_BLOCK].ks;
-      for (int i=0;i<dcmps[Gik_BLOCK].nx1;++i) {
-        for (int j=0;j<dcmps[Gik_BLOCK].nx2;++j) {
+      for (int i=0; i<dcmps[Gik_BLOCK].nx1; ++i) {
+        for (int j=0; j<dcmps[Gik_BLOCK].nx2; ++j) {
           idx = j + dcmps[Gik_BLOCK].nx2*(kp + dcmps[Gik_BLOCK].nx3*i);
           idx2 = j + dcmps[Gii_BLOCK].nx2*(dcmps[Gii_BLOCK].is+i+noffset1_);
-          ((Real*)(grf[OUT][TOP]))[idx] = psi2[TOP][idx2];
-          ((Real*)(grf[OUT][BOT]))[idx] = psi2[BOT][idx2];
+          (reinterpret_cast<Real*>(grf[OUT][TOP]))[idx] = psi2[TOP][idx2];
+          (reinterpret_cast<Real*>(grf[OUT][BOT]))[idx] = psi2[BOT][idx2];
         }
       }
     }
     if ((gkp >= dcmps[Gkk_BLOCK].ks)&&(gkp <= dcmps[Gkk_BLOCK].ke)) {
       kp = gkp - dcmps[Gkk_BLOCK].ks;
-      for (int k=0;k<dcmps[Gkk_BLOCK].nx1;++k) {
-        for (int j=0;j<dcmps[Gkk_BLOCK].nx2;++j) {
+      for (int k=0; k<dcmps[Gkk_BLOCK].nx1; ++k) {
+        for (int j=0; j<dcmps[Gkk_BLOCK].nx2; ++j) {
           idx = j + dcmps[Gkk_BLOCK].nx2*(k + dcmps[Gkk_BLOCK].nx1*kp);
           idx2 = j + dcmps[Gki_BLOCK].nx2*(dcmps[Gki_BLOCK].is+k+noffset2_);
-          ((Real*)(grf[OUT][INN]))[idx] = psi2[INN][idx2];
-          ((Real*)(grf[OUT][OUT]))[idx] = psi2[OUT][idx2];
+          (reinterpret_cast<Real*>(grf[OUT][INN]))[idx] = psi2[INN][idx2];
+          (reinterpret_cast<Real*>(grf[OUT][OUT]))[idx] = psi2[OUT][idx2];
         }
       }
     }
     if (Globals::my_rank == 0) std::cout << "out boundary gkp = " << gkp << std::endl;
   }
-  remap_3d(((Real*)(grf[TOP][TOP])), ((Real*)(grf[TOP][TOP])), (Real*)buf_, RmpPlan[Gii_BLOCK][Gii2P0]);
-  remap_3d(((Real*)(grf[TOP][BOT])), ((Real*)(grf[TOP][BOT])), (Real*)buf_, RmpPlan[Gii_BLOCK][Gii2P0]);
-  remap_3d(((Real*)(grf[BOT][TOP])), ((Real*)(grf[BOT][TOP])), (Real*)buf_, RmpPlan[Gii_BLOCK][Gii2P0]);
-  remap_3d(((Real*)(grf[BOT][BOT])), ((Real*)(grf[BOT][BOT])), (Real*)buf_, RmpPlan[Gii_BLOCK][Gii2P0]);
-  remap_3d(((Real*)(grf[INN][TOP])), ((Real*)(grf[INN][TOP])), (Real*)buf_, RmpPlan[Gik_BLOCK][Gik2P0]);
-  remap_3d(((Real*)(grf[INN][BOT])), ((Real*)(grf[INN][BOT])), (Real*)buf_, RmpPlan[Gik_BLOCK][Gik2P0]);
-  remap_3d(((Real*)(grf[OUT][TOP])), ((Real*)(grf[OUT][TOP])), (Real*)buf_, RmpPlan[Gik_BLOCK][Gik2P0]);
-  remap_3d(((Real*)(grf[OUT][BOT])), ((Real*)(grf[OUT][BOT])), (Real*)buf_, RmpPlan[Gik_BLOCK][Gik2P0]);
-  remap_3d(((Real*)(grf[TOP][INN])), ((Real*)(grf[TOP][INN])), (Real*)buf_, RmpPlan[Gki_BLOCK][Gki2P0]);
-  remap_3d(((Real*)(grf[TOP][OUT])), ((Real*)(grf[TOP][OUT])), (Real*)buf_, RmpPlan[Gki_BLOCK][Gki2P0]);
-  remap_3d(((Real*)(grf[BOT][INN])), ((Real*)(grf[BOT][INN])), (Real*)buf_, RmpPlan[Gki_BLOCK][Gki2P0]);
-  remap_3d(((Real*)(grf[BOT][OUT])), ((Real*)(grf[BOT][OUT])), (Real*)buf_, RmpPlan[Gki_BLOCK][Gki2P0]);
-  remap_3d(((Real*)(grf[INN][INN])), ((Real*)(grf[INN][INN])), (Real*)buf_, RmpPlan[Gkk_BLOCK][Gkk2P0]);
-  remap_3d(((Real*)(grf[INN][OUT])), ((Real*)(grf[INN][OUT])), (Real*)buf_, RmpPlan[Gkk_BLOCK][Gkk2P0]);
-  remap_3d(((Real*)(grf[OUT][INN])), ((Real*)(grf[OUT][INN])), (Real*)buf_, RmpPlan[Gkk_BLOCK][Gkk2P0]);
-  remap_3d(((Real*)(grf[OUT][OUT])), ((Real*)(grf[OUT][OUT])), (Real*)buf_, RmpPlan[Gkk_BLOCK][Gkk2P0]);
-  for (int i=2;i<=17;++i)
+  remap_3d((reinterpret_cast<Real*>(grf[TOP][TOP])),
+      (reinterpret_cast<Real*>(grf[TOP][TOP])), reinterpret_cast<Real*>(buf_),
+      RmpPlan[Gii_BLOCK][Gii2P0]);
+  remap_3d((reinterpret_cast<Real*>(grf[TOP][BOT])),
+      (reinterpret_cast<Real*>(grf[TOP][BOT])), reinterpret_cast<Real*>(buf_),
+      RmpPlan[Gii_BLOCK][Gii2P0]);
+  remap_3d((reinterpret_cast<Real*>(grf[BOT][TOP])),
+      (reinterpret_cast<Real*>(grf[BOT][TOP])), reinterpret_cast<Real*>(buf_),
+      RmpPlan[Gii_BLOCK][Gii2P0]);
+  remap_3d((reinterpret_cast<Real*>(grf[BOT][BOT])),
+      (reinterpret_cast<Real*>(grf[BOT][BOT])), reinterpret_cast<Real*>(buf_),
+      RmpPlan[Gii_BLOCK][Gii2P0]);
+  remap_3d((reinterpret_cast<Real*>(grf[INN][TOP])),
+      (reinterpret_cast<Real*>(grf[INN][TOP])), reinterpret_cast<Real*>(buf_),
+      RmpPlan[Gik_BLOCK][Gik2P0]);
+  remap_3d((reinterpret_cast<Real*>(grf[INN][BOT])),
+      (reinterpret_cast<Real*>(grf[INN][BOT])), reinterpret_cast<Real*>(buf_),
+      RmpPlan[Gik_BLOCK][Gik2P0]);
+  remap_3d((reinterpret_cast<Real*>(grf[OUT][TOP])),
+      (reinterpret_cast<Real*>(grf[OUT][TOP])), reinterpret_cast<Real*>(buf_),
+      RmpPlan[Gik_BLOCK][Gik2P0]);
+  remap_3d((reinterpret_cast<Real*>(grf[OUT][BOT])),
+      (reinterpret_cast<Real*>(grf[OUT][BOT])), reinterpret_cast<Real*>(buf_),
+      RmpPlan[Gik_BLOCK][Gik2P0]);
+  remap_3d((reinterpret_cast<Real*>(grf[TOP][INN])),
+      (reinterpret_cast<Real*>(grf[TOP][INN])), reinterpret_cast<Real*>(buf_),
+      RmpPlan[Gki_BLOCK][Gki2P0]);
+  remap_3d((reinterpret_cast<Real*>(grf[TOP][OUT])),
+      (reinterpret_cast<Real*>(grf[TOP][OUT])), reinterpret_cast<Real*>(buf_),
+      RmpPlan[Gki_BLOCK][Gki2P0]);
+  remap_3d((reinterpret_cast<Real*>(grf[BOT][INN])),
+      (reinterpret_cast<Real*>(grf[BOT][INN])), reinterpret_cast<Real*>(buf_),
+      RmpPlan[Gki_BLOCK][Gki2P0]);
+  remap_3d((reinterpret_cast<Real*>(grf[BOT][OUT])),
+      (reinterpret_cast<Real*>(grf[BOT][OUT])), reinterpret_cast<Real*>(buf_),
+      RmpPlan[Gki_BLOCK][Gki2P0]);
+  remap_3d((reinterpret_cast<Real*>(grf[INN][INN])),
+      (reinterpret_cast<Real*>(grf[INN][INN])), reinterpret_cast<Real*>(buf_),
+      RmpPlan[Gkk_BLOCK][Gkk2P0]);
+  remap_3d((reinterpret_cast<Real*>(grf[INN][OUT])),
+      (reinterpret_cast<Real*>(grf[INN][OUT])), reinterpret_cast<Real*>(buf_),
+      RmpPlan[Gkk_BLOCK][Gkk2P0]);
+  remap_3d((reinterpret_cast<Real*>(grf[OUT][INN])),
+      (reinterpret_cast<Real*>(grf[OUT][INN])), reinterpret_cast<Real*>(buf_),
+      RmpPlan[Gkk_BLOCK][Gkk2P0]);
+  remap_3d((reinterpret_cast<Real*>(grf[OUT][OUT])),
+      (reinterpret_cast<Real*>(grf[OUT][OUT])), reinterpret_cast<Real*>(buf_),
+      RmpPlan[Gkk_BLOCK][Gkk2P0]);
+  for (int i=2; i<=17; ++i)
     fftw_execute(fft_x2_forward_[i]);
-  remap_3d((Real*)grf[TOP][TOP], (Real*)grf[TOP][TOP], (Real*)buf_, RmpPlan[Gii2P][Gii]);
-  remap_3d((Real*)grf[TOP][BOT], (Real*)grf[TOP][BOT], (Real*)buf_, RmpPlan[Gii2P][Gii]);
-  remap_3d((Real*)grf[BOT][TOP], (Real*)grf[BOT][TOP], (Real*)buf_, RmpPlan[Gii2P][Gii]);
-  remap_3d((Real*)grf[BOT][BOT], (Real*)grf[BOT][BOT], (Real*)buf_, RmpPlan[Gii2P][Gii]);
-  remap_3d((Real*)grf[INN][TOP], (Real*)grf[INN][TOP], (Real*)buf_, RmpPlan[Gik2P][Gik]);
-  remap_3d((Real*)grf[INN][BOT], (Real*)grf[INN][BOT], (Real*)buf_, RmpPlan[Gik2P][Gik]);
-  remap_3d((Real*)grf[OUT][TOP], (Real*)grf[OUT][TOP], (Real*)buf_, RmpPlan[Gik2P][Gik]);
-  remap_3d((Real*)grf[OUT][BOT], (Real*)grf[OUT][BOT], (Real*)buf_, RmpPlan[Gik2P][Gik]);
-  remap_3d((Real*)grf[TOP][INN], (Real*)grf[TOP][INN], (Real*)buf_, RmpPlan[Gki2P][Gki]);
-  remap_3d((Real*)grf[TOP][OUT], (Real*)grf[TOP][OUT], (Real*)buf_, RmpPlan[Gki2P][Gki]);
-  remap_3d((Real*)grf[BOT][INN], (Real*)grf[BOT][INN], (Real*)buf_, RmpPlan[Gki2P][Gki]);
-  remap_3d((Real*)grf[BOT][OUT], (Real*)grf[BOT][OUT], (Real*)buf_, RmpPlan[Gki2P][Gki]);
-  remap_3d((Real*)grf[INN][INN], (Real*)grf[INN][INN], (Real*)buf_, RmpPlan[Gkk2P][Gkk]);
-  remap_3d((Real*)grf[INN][OUT], (Real*)grf[INN][OUT], (Real*)buf_, RmpPlan[Gkk2P][Gkk]);
-  remap_3d((Real*)grf[OUT][INN], (Real*)grf[OUT][INN], (Real*)buf_, RmpPlan[Gkk2P][Gkk]);
-  remap_3d((Real*)grf[OUT][OUT], (Real*)grf[OUT][OUT], (Real*)buf_, RmpPlan[Gkk2P][Gkk]);
+  remap_3d(reinterpret_cast<Real*>(grf[TOP][TOP]), reinterpret_cast<Real*>(grf[TOP][TOP]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gii2P][Gii]);
+  remap_3d(reinterpret_cast<Real*>(grf[TOP][BOT]), reinterpret_cast<Real*>(grf[TOP][BOT]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gii2P][Gii]);
+  remap_3d(reinterpret_cast<Real*>(grf[BOT][TOP]), reinterpret_cast<Real*>(grf[BOT][TOP]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gii2P][Gii]);
+  remap_3d(reinterpret_cast<Real*>(grf[BOT][BOT]), reinterpret_cast<Real*>(grf[BOT][BOT]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gii2P][Gii]);
+  remap_3d(reinterpret_cast<Real*>(grf[INN][TOP]), reinterpret_cast<Real*>(grf[INN][TOP]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gik2P][Gik]);
+  remap_3d(reinterpret_cast<Real*>(grf[INN][BOT]), reinterpret_cast<Real*>(grf[INN][BOT]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gik2P][Gik]);
+  remap_3d(reinterpret_cast<Real*>(grf[OUT][TOP]), reinterpret_cast<Real*>(grf[OUT][TOP]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gik2P][Gik]);
+  remap_3d(reinterpret_cast<Real*>(grf[OUT][BOT]), reinterpret_cast<Real*>(grf[OUT][BOT]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gik2P][Gik]);
+  remap_3d(reinterpret_cast<Real*>(grf[TOP][INN]), reinterpret_cast<Real*>(grf[TOP][INN]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gki2P][Gki]);
+  remap_3d(reinterpret_cast<Real*>(grf[TOP][OUT]), reinterpret_cast<Real*>(grf[TOP][OUT]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gki2P][Gki]);
+  remap_3d(reinterpret_cast<Real*>(grf[BOT][INN]), reinterpret_cast<Real*>(grf[BOT][INN]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gki2P][Gki]);
+  remap_3d(reinterpret_cast<Real*>(grf[BOT][OUT]), reinterpret_cast<Real*>(grf[BOT][OUT]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gki2P][Gki]);
+  remap_3d(reinterpret_cast<Real*>(grf[INN][INN]), reinterpret_cast<Real*>(grf[INN][INN]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gkk2P][Gkk]);
+  remap_3d(reinterpret_cast<Real*>(grf[INN][OUT]), reinterpret_cast<Real*>(grf[INN][OUT]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gkk2P][Gkk]);
+  remap_3d(reinterpret_cast<Real*>(grf[OUT][INN]), reinterpret_cast<Real*>(grf[OUT][INN]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gkk2P][Gkk]);
+  remap_3d(reinterpret_cast<Real*>(grf[OUT][OUT]), reinterpret_cast<Real*>(grf[OUT][OUT]),
+      reinterpret_cast<Real*>(buf_), RmpPlan[Gkk2P][Gkk]);
 }
 
-void OBCGravityCyl::CalcGrf(int gip, int gkp)
+void OBCGravityCyl::CalcGrf(int gip, int gkp) {
 // place charge at (i,j,k) = (gip, 0, gkp) and solve the Poisson eq.
 // with open boundary condition in an enlarged domain.
 // return in psi2[...]
-{
   gip += noffset1_;
   gkp += noffset2_;
   int gjp=0; // position of the point source
   int gi,gj,gk,i,k,idx;
   Real R, Rp, rds, psi, dV;
-  
+
   dV = 0.5*(SQR(x1f2_(NGHOST+gip+1)) - SQR(x1f2_(NGHOST+gip)))*dx2_*dx3_;
   Rp = x1v2_(NGHOST+gip);
   // Add point charge
-  for (int i=0;i<dcmps[E2P0].nx1;++i) {
-    for (int k=0;k<dcmps[E2P0].nx3;++k) {
-      for (int j=0;j<dcmps[E2P0].nx2;++j) {
+  for (int i=0; i<dcmps[E2P0].nx1; ++i) {
+    for (int k=0; k<dcmps[E2P0].nx3; ++k) {
+      for (int j=0; j<dcmps[E2P0].nx2; ++j) {
         idx = j + dcmps[E2P0].nx2*(k + dcmps[E2P0].nx3*i);
-        if (((dcmps[E2P0].is+i)==gip)&&((dcmps[E2P0].js+j)==gjp)&&((dcmps[E2P0].ks+k)==gkp))
-          ((Real*)in2_)[idx] = 1.0;
+        if (((dcmps[E2P0].is+i)==gip)&&((dcmps[E2P0].js+j)==gjp)&&
+            ((dcmps[E2P0].ks+k)==gkp))
+          reinterpret_cast<Real*>(in2_)[idx] = 1.0;
         else
-          ((Real*)in2_)[idx] = 0.0;
+          reinterpret_cast<Real*>(in2_)[idx] = 0.0;
       }
     }
   }
   // Add boundary charge
-  for (int k=0;k<dcmps[E2P0].nx3;++k) {
-    for (int j=0;j<dcmps[E2P0].nx2;++j) {
+  for (int k=0; k<dcmps[E2P0].nx3; ++k) {
+    for (int j=0; j<dcmps[E2P0].nx2; ++j) {
       gj = dcmps[E2P0].js+j;
       gk = dcmps[E2P0].ks+k;
       if (dcmps[E2P0].is == 0) {
@@ -3549,31 +3637,34 @@ void OBCGravityCyl::CalcGrf(int gip, int gkp)
         idx = j + dcmps[E2P0].nx2*(k + dcmps[E2P0].nx3*i);
         Real psir = 0;
         Real psil = 0;
-        for (int p=0;p<pfold_;++p) {
+        for (int p=0; p<pfold_; ++p) {
           R  = x1v2_(NGHOST+i);
-          rds = sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)+2*PI*p/pfold_) + SQR(dx3_*(gk-gkp)));
+          rds = std::sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)+2*PI*p/pfold_)
+              + SQR(dx3_*(gk-gkp)));
           psir -= (four_pi_G/4.0/PI)*dV/rds;
           R  = x1v2_(NGHOST+i-1);
-          rds = sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)+2*PI*p/pfold_) + SQR(dx3_*(gk-gkp)));
+          rds = std::sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)+2*PI*p/pfold_)
+              + SQR(dx3_*(gk-gkp)));
           psil -= (four_pi_G/4.0/PI)*dV/rds;
         }
-        ((Real*)in2_)[idx] += aa_(i)*(psir-psil)/four_pi_G;  // INN
+        reinterpret_cast<Real*>(in2_)[idx] += aa_(i)*(psir-psil)/four_pi_G;  // INN
       }
       if (dcmps[E2P0].ie == lNx1-1) {
         i = dcmps[E2P0].nx1-1;
         idx = j + dcmps[E2P0].nx2*(k + dcmps[E2P0].nx3*i);
         gi = lNx1-1;
         R  = x1v2_(NGHOST+gi+1);
-        for (int p=0;p<pfold_;++p) {
-          rds = sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)+2*PI*p/pfold_) + SQR(dx3_*(gk-gkp)));
+        for (int p=0; p<pfold_; ++p) {
+          rds = std::sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)+2*PI*p/pfold_)
+              + SQR(dx3_*(gk-gkp)));
           psi = -(four_pi_G/4.0/PI)*dV/rds;
-          ((Real*)in2_)[idx] -= cc_(gi)*psi/four_pi_G;  // OUT
+          reinterpret_cast<Real*>(in2_)[idx] -= cc_(gi)*psi/four_pi_G;  // OUT
         }
       }
     }
   }
-  for (int i=0;i<dcmps[E2P0].nx1;++i) {
-    for (int j=0;j<dcmps[E2P0].nx2;++j) {
+  for (int i=0; i<dcmps[E2P0].nx1; ++i) {
+    for (int j=0; j<dcmps[E2P0].nx2; ++j) {
       gj = dcmps[E2P0].js+j;
       gi = dcmps[E2P0].is+i;
       R  = x1v2_(NGHOST+gi);
@@ -3581,97 +3672,104 @@ void OBCGravityCyl::CalcGrf(int gip, int gkp)
         k = dcmps[E2P0].nx3-1;
         idx = j + dcmps[E2P0].nx2*(k + dcmps[E2P0].nx3*i); // TOP
         gk = Nx3-1+2*ngh_grf_;
-        for (int p=0;p<pfold_;++p) {
-          rds = sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)+2*PI*p/pfold_) + SQR(dx3_*(gk+1-gkp)));
+        for (int p=0; p<pfold_; ++p) {
+          rds = std::sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)+2*PI*p/pfold_)
+              + SQR(dx3_*(gk+1-gkp)));
           psi = -(four_pi_G/4.0/PI)*dV/rds;
-          ((Real*)in2_)[idx] -= psi/four_pi_G/SQR(dx3_);
+          reinterpret_cast<Real*>(in2_)[idx] -= psi/four_pi_G/SQR(dx3_);
         }
       }
       if (dcmps[E2P0].ks == 0) {
         k = 0;
         idx = j + dcmps[E2P0].nx2*(k + dcmps[E2P0].nx3*i); // BOT
         gk = 0;
-        for (int p=0;p<pfold_;++p) {
-          rds = sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)+2*PI*p/pfold_) + SQR(dx3_*(gk-1-gkp)));
+        for (int p=0; p<pfold_; ++p) {
+          rds = std::sqrt(R*R + Rp*Rp - 2*R*Rp*cos(dx2_*(gj-gjp)+2*PI*p/pfold_)
+              + SQR(dx3_*(gk-1-gkp)));
           psi = -(four_pi_G/4.0/PI)*dV/rds;
-          ((Real*)in2_)[idx] -= psi/four_pi_G/SQR(dx3_);
+          reinterpret_cast<Real*>(in2_)[idx] -= psi/four_pi_G/SQR(dx3_);
         }
       }
     }
   }
   fftw_execute(fft_x2_forward_[1]); // ((Real*)in2_) -> in2_
-  remap_3d((Real*)in2_, (Real*)in2_, (Real*)buf_, RmpPlan[E2P][E3P]);
+  remap_3d(reinterpret_cast<Real*>(in2_), reinterpret_cast<Real*>(in2_),
+      reinterpret_cast<Real*>(buf_), RmpPlan[E2P][E3P]);
   fftw_execute(fft_x3_r2r_[4]);
   fftw_execute(fft_x3_r2r_[5]);
-  remap_3d((Real*)in2_, (Real*)in2_, (Real*)buf_, RmpPlan[E3P][E1P]);
-  for (int k=0;k<dcmps[E1P].nx3;++k) {
-    for (int j=0;j<dcmps[E1P].nx2;++j) {
-      for (int i=0;i<dcmps[E1P].nx1;++i) {
+  remap_3d(reinterpret_cast<Real*>(in2_), reinterpret_cast<Real*>(in2_),
+      reinterpret_cast<Real*>(buf_), RmpPlan[E3P][E1P]);
+  for (int k=0; k<dcmps[E1P].nx3; ++k) {
+    for (int j=0; j<dcmps[E1P].nx2; ++j) {
+      for (int i=0; i<dcmps[E1P].nx1; ++i) {
         int idx = i + dcmps[E1P].nx1*(j + dcmps[E1P].nx2*k);
         rr_(i) = four_pi_G * in2_[idx][0];
         if (rat==1.0) {
           bb_(i) = lambda22_(j,i) + lambda33_(k) - 2./SQR( dx1v2_(i+NGHOST) );
-        }
-        else {
-          bb_(i) = lambda22_(j,i) + lambda33_(k) - 2.*SQR( 1.0 / std::log(rat) / x1v2_(i+NGHOST) );
+        } else {
+          bb_(i) = lambda22_(j,i) + lambda33_(k) - 2.*SQR( 1.0 / std::log(rat)
+              / x1v2_(i+NGHOST) );
         }
       }
       bb_(0) += aa_(0);
       tridag(aa_,bb_,cc_,xx_,rr_);
-      for (int i=0;i<dcmps[E1P].nx1;++i) {
+      for (int i=0; i<dcmps[E1P].nx1; ++i) {
         int idx = i + dcmps[E1P].nx1*(j + dcmps[E1P].nx2*k);
         out2_[idx][0] = xx_(i);
         rr_(i) = four_pi_G * in2_[idx][1];
       }
       tridag(aa_,bb_,cc_,xx_,rr_);
-      for (int i=0;i<dcmps[E1P].nx1;++i) {
+      for (int i=0; i<dcmps[E1P].nx1; ++i) {
         int idx = i + dcmps[E1P].nx1*(j + dcmps[E1P].nx2*k);
         out2_[idx][1] = xx_(i);
       }
     }
   }
-  remap_3d((Real*)out2_, (Real*)out2_, (Real*)buf_, RmpPlan[E1P][E3P]);
+  remap_3d(reinterpret_cast<Real*>(out2_), reinterpret_cast<Real*>(out2_),
+      reinterpret_cast<Real*>(buf_), RmpPlan[E1P][E3P]);
   fftw_execute(fft_x3_r2r_[6]);
   fftw_execute(fft_x3_r2r_[7]);
-  remap_3d((Real*)out2_, (Real*)out2_, (Real*)buf_, RmpPlan[E3P][E2P]);
+  remap_3d(reinterpret_cast<Real*>(out2_), reinterpret_cast<Real*>(out2_),
+      reinterpret_cast<Real*>(buf_), RmpPlan[E3P][E2P]);
   fftw_execute(fft_x2_backward_[1]);
-  remap_3d(((Real*)out2_), ((Real*)out2_), (Real*)buf_, RmpPlan[E2P0][EB]);
+  remap_3d((reinterpret_cast<Real*>(out2_)), (reinterpret_cast<Real*>(out2_)),
+      reinterpret_cast<Real*>(buf_), RmpPlan[E2P0][EB]);
   Real normfac = 1.0 / (Nx2*2*(Nx3+1+2*ngh_grf_));
 
-  for (int j=0;j<dcmps[EB].nx2;++j) {
-    for (int i=0;i<lNx1;++i) {
+  for (int j=0; j<dcmps[EB].nx2; ++j) {
+    for (int i=0; i<lNx1; ++i) {
       int idx2 = j + dcmps[EB].nx2*i;
       psi2[TOP][idx2] = 0.0;
       psi2[BOT][idx2] = 0.0;
     }
-    for (int k=0;k<Nx3+2*ngh_grf_;++k) {
+    for (int k=0; k<Nx3+2*ngh_grf_; ++k) {
       int idx2 = j + dcmps[EB].nx2*gk;
       psi2[INN][idx2] = 0.0;
       psi2[OUT][idx2] = 0.0;
     }
   }
-  for (int k=0;k<dcmps[EB].nx3;++k) {
-    for (int j=0;j<dcmps[EB].nx2;++j) {
-      for (int i=0;i<dcmps[EB].nx1;++i) {
+  for (int k=0; k<dcmps[EB].nx3; ++k) {
+    for (int j=0; j<dcmps[EB].nx2; ++j) {
+      for (int i=0; i<dcmps[EB].nx1; ++i) {
         int idx = i + dcmps[EB].nx1*(j + dcmps[EB].nx2*k);
         gk = dcmps[EB].ks + k;
         gi = dcmps[EB].is + i;
-        ((Real*)out2_)[idx] *= normfac;
+        reinterpret_cast<Real*>(out2_)[idx] *= normfac;
         if (gk == Nx3+noffset2_) { // top boundary
           int idx2 = j + dcmps[EB].nx2*gi;
-          psi2[TOP][idx2] = ((Real*)out2_)[idx];
+          psi2[TOP][idx2] = reinterpret_cast<Real*>(out2_)[idx];
         }
         if (gk == -1 + noffset2_) { // bottom boundary
           int idx2 = j + dcmps[EB].nx2*gi;
-          psi2[BOT][idx2] = ((Real*)out2_)[idx];
+          psi2[BOT][idx2] = reinterpret_cast<Real*>(out2_)[idx];
         }
         if (gi == -1 + noffset1_) { // inner boundary
           int idx2 = j + dcmps[EB].nx2*gk;
-          psi2[INN][idx2] = ((Real*)out2_)[idx];
+          psi2[INN][idx2] = reinterpret_cast<Real*>(out2_)[idx];
         }
         if (gi == Nx1 + noffset1_) { // outer boundary
           int idx2 = j + dcmps[EB].nx2*gk;
-          psi2[OUT][idx2] = ((Real*)out2_)[idx];
+          psi2[OUT][idx2] = reinterpret_cast<Real*>(out2_)[idx];
         }
       }
     }
@@ -3682,13 +3780,13 @@ void OBCGravityCyl::CalcGrf(int gip, int gkp)
     dcmps[EB].nx2*dcmps[EB].nx1, MPI_DOUBLE, x1comm);
 
   int recvcount[x3comm_size], displs[x3comm_size];
-  for (int i=0;i<x3comm_size;++i) {
+  for (int i=0; i<x3comm_size; ++i) {
     recvcount[i] = dcmps[EB].nx2*nx3;
     displs[i] = 0;
   }
   recvcount[0] += dcmps[EB].nx2*ngh_grf_;
   recvcount[x3comm_size-1] += dcmps[EB].nx2*ngh_grf_;
-  for (int i=1;i<x3comm_size;++i) {
+  for (int i=1; i<x3comm_size; ++i) {
     displs[i] = displs[i-1] + recvcount[i-1];
   }
   MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DOUBLE, psi2[INN],
@@ -3696,140 +3794,149 @@ void OBCGravityCyl::CalcGrf(int gip, int gkp)
   MPI_Allgatherv(MPI_IN_PLACE, 0, MPI_DOUBLE, psi2[OUT],
     recvcount, displs, MPI_DOUBLE, x3comm);
 
-  // WARNING : Note that in the vertical direction, the processor responsible for the top boundary of the extended domain should be also responsible for the top boundary for the original domain.
-  // However, in the radial direction, the processor responsible for the inner boundary of the extended domain would in general be different from the processor responsible for the inner boundary of the original domain.
-  MPI_Bcast(psi2[TOP], dcmps[EB].nx2*lNx1, MPI_DOUBLE, x3comm_size-1, x3comm); 
+  // WARNING : Note that in the vertical direction, the processor responsible for the
+  // top boundary of the extended domain should be also responsible for the top boundary
+  // for the original domain.
+  // However, in the radial direction, the processor responsible for the inner boundary
+  // of the extended domain would in general be different from the processor responsible
+  // for the inner boundary of the original domain.
+  MPI_Bcast(psi2[TOP], dcmps[EB].nx2*lNx1, MPI_DOUBLE, x3comm_size-1, x3comm);
   MPI_Bcast(psi2[BOT], dcmps[EB].nx2*lNx1, MPI_DOUBLE, 0, x3comm);
-  MPI_Bcast(psi2[INN], dcmps[EB].nx2*(Nx3+2*ngh_grf_), MPI_DOUBLE, (-1+noffset1_)/(lNx1/np1), x1comm);
-  MPI_Bcast(psi2[OUT], dcmps[EB].nx2*(Nx3+2*ngh_grf_), MPI_DOUBLE, (Nx1+noffset1_)/(lNx1/np1), x1comm);
+  MPI_Bcast(psi2[INN], dcmps[EB].nx2*(Nx3+2*ngh_grf_), MPI_DOUBLE,
+      (-1+noffset1_)/(lNx1/np1), x1comm);
+  MPI_Bcast(psi2[OUT], dcmps[EB].nx2*(Nx3+2*ngh_grf_), MPI_DOUBLE,
+      (Nx1+noffset1_)/(lNx1/np1), x1comm);
 }
 
 
-void OBCGravityCyl::LoadSource(const AthenaArray<Real> &src)
-{
+void OBCGravityCyl::LoadSource(const AthenaArray<Real> &src) {
   int is, ie, js, je, ks, ke;
   int idx;
   is = pmy_block->is; js = pmy_block->js; ks = pmy_block->ks;
   ie = pmy_block->ie; je = pmy_block->je; ke = pmy_block->ke;
-  for (int k=ks;k<=ke;++k) {
-    for (int j=js;j<=je;++j) {
-      for (int i=is;i<=ie;++i) {
+  for (int k=ks; k<=ke; ++k) {
+    for (int j=js; j<=je; ++j) {
+      for (int i=is; i<=ie; ++i) {
         idx = (i-is) + dcmps[XB].nx1*((j-js) + dcmps[XB].nx2*(k-ks));
-        ((Real*)in_)[idx] = src(IDN,k,j,i);
+        reinterpret_cast<Real*>(in_)[idx] = src(IDN,k,j,i);
       }
     }
   }
 }
 
-void OBCGravityCyl::SolveZeroBC()
-{
-  remap_3d(((Real*)in_), ((Real*)in_), (Real*)buf_, RmpPlan[XB][X2P0]);
+void OBCGravityCyl::SolveZeroBC() {
+  remap_3d((reinterpret_cast<Real*>(in_)), (reinterpret_cast<Real*>(in_)),
+      reinterpret_cast<Real*>(buf_), RmpPlan[XB][X2P0]);
   fftw_execute(fft_x2_forward_[0]); // ((Real*)in_) -> in_
-  remap_3d((Real*)in_, (Real*)in_, (Real*)buf_, RmpPlan[X2P][X3P]);
+  remap_3d(reinterpret_cast<Real*>(in_), reinterpret_cast<Real*>(in_),
+      reinterpret_cast<Real*>(buf_), RmpPlan[X2P][X3P]);
   fftw_execute(fft_x3_r2r_[0]);
   fftw_execute(fft_x3_r2r_[1]);
-  remap_3d((Real*)in_, (Real*)in_, (Real*)buf_, RmpPlan[X3P][X1P]);
+  remap_3d(reinterpret_cast<Real*>(in_), reinterpret_cast<Real*>(in_),
+      reinterpret_cast<Real*>(buf_), RmpPlan[X3P][X1P]);
   int idx;
-  for (int k=0;k<dcmps[X1P].nx3;++k) {
-    for (int j=0;j<dcmps[X1P].nx2;++j) {
-      for (int i=0;i<dcmps[X1P].nx1;++i) {
+  for (int k=0; k<dcmps[X1P].nx3; ++k) {
+    for (int j=0; j<dcmps[X1P].nx2; ++j) {
+      for (int i=0; i<dcmps[X1P].nx1; ++i) {
         idx = i + dcmps[X1P].nx1*(j + dcmps[X1P].nx2*k);
         r_(i) = four_pi_G * in_[idx][0];
         if (rat==1.0) {
           b_(i) = lambda2_(j,i) + lambda3_(k) - 2./SQR( dx1v_(i+NGHOST) );
-        }
-        else {
-          b_(i) = lambda2_(j,i) + lambda3_(k) - 2.*SQR( 1.0 / std::log(rat) / x1v_(i+NGHOST) );
+        } else {
+          b_(i) = lambda2_(j,i) + lambda3_(k) - 2.*SQR( 1.0 / std::log(rat)
+              / x1v_(i+NGHOST) );
         }
       }
       tridag(a_,b_,c_,x_,r_);
-      for (int i=0;i<dcmps[X1P].nx1;++i) {
+      for (int i=0; i<dcmps[X1P].nx1; ++i) {
         idx = i + dcmps[X1P].nx1*(j + dcmps[X1P].nx2*k);
         out_[idx][0] = x_(i);
         r_(i) = four_pi_G * in_[idx][1];
       }
       tridag(a_,b_,c_,x_,r_);
-      for (int i=0;i<dcmps[X1P].nx1;++i) {
+      for (int i=0; i<dcmps[X1P].nx1; ++i) {
         idx = i + dcmps[X1P].nx1*(j + dcmps[X1P].nx2*k);
         out_[idx][1] = x_(i);
       }
     }
   }
-  remap_3d((Real*)out_, (Real*)out_, (Real*)buf_, RmpPlan[X1P][X3P]);
+  remap_3d(reinterpret_cast<Real*>(out_), reinterpret_cast<Real*>(out_),
+      reinterpret_cast<Real*>(buf_), RmpPlan[X1P][X3P]);
   fftw_execute(fft_x3_r2r_[2]);
   fftw_execute(fft_x3_r2r_[3]);
-  remap_3d((Real*)out_, (Real*)out_, (Real*)buf_, RmpPlan[X3P][X2P]);
+  remap_3d(reinterpret_cast<Real*>(out_), reinterpret_cast<Real*>(out_),
+      reinterpret_cast<Real*>(buf_), RmpPlan[X3P][X2P]);
   fftw_execute(fft_x2_backward_[0]);
-  remap_3d(((Real*)out_), ((Real*)out_), (Real*)buf_, RmpPlan[X2P0][XB]);
+  remap_3d((reinterpret_cast<Real*>(out_)), (reinterpret_cast<Real*>(out_)),
+      reinterpret_cast<Real*>(buf_), RmpPlan[X2P0][XB]);
   int is,ie,js,je,ks,ke;
   is = pmy_block->is; js = pmy_block->js; ks = pmy_block->ks;
   ie = pmy_block->ie; je = pmy_block->je; ke = pmy_block->ke;
   Real normfac = 1.0 / (Nx2*2*((Nx3)+1));
-  for (int k=ks;k<=ke;++k) {
-    for (int j=js;j<=je;++j) {
-      for (int i=is;i<=ie;++i) {
+  for (int k=ks; k<=ke; ++k) {
+    for (int j=js; j<=je; ++j) {
+      for (int i=is; i<=ie; ++i) {
         idx = (i-is) + dcmps[XB].nx1*((j-js) + dcmps[XB].nx2*(k-ks));
-        ((Real*)out_)[idx] *= normfac;
+        reinterpret_cast<Real*>(out_)[idx] *= normfac;
       }
     }
   }
 }
 
-void OBCGravityCyl::CalcBndCharge()
-{
+void OBCGravityCyl::CalcBndCharge() {
   Coordinates *pcrd = pmy_block->pcoord;
   RegionSize& mesh_size = pmy_block->pmy_mesh->mesh_size;
   RegionSize& block_size = pmy_block->block_size;
   Real normfac1 = 1.0 / (four_pi_G*dx3_*dx3_);
   Real normfac2, normfac3;
   if (mesh_size.x1rat == 1.0) {
-    normfac2 = (1.0 / SQR(dx1v_(-1+NGHOST)) + 0.5/dx1v_(-1+NGHOST)/x1v_(-1+NGHOST)) / four_pi_G;
-    normfac3 = (1.0 / SQR(dx1v_(Nx1+NGHOST)) - 0.5/dx1v_(Nx1+NGHOST)/x1v_(Nx1+NGHOST)) / four_pi_G;
-  }
-  else {
+    normfac2 = (1.0 / SQR(dx1v_(-1+NGHOST)) + 0.5/dx1v_(-1+NGHOST)/x1v_(-1+NGHOST))
+      / four_pi_G;
+    normfac3 = (1.0 / SQR(dx1v_(Nx1+NGHOST)) - 0.5/dx1v_(Nx1+NGHOST)/x1v_(Nx1+NGHOST))
+      / four_pi_G;
+  } else {
     normfac2 = SQR( 1.0 / std::log(rat) / x1v_(-1+NGHOST)  ) / four_pi_G;
     normfac3 = SQR( 1.0 / std::log(rat) / x1v_(Nx1+NGHOST) ) / four_pi_G;
   }
   if (dcmps[XB].ke == Nx3-1) {
-    for (int j=0;j<dcmps[XB].nx2;++j) {
-      for (int i=0;i<dcmps[XB].nx1;++i) {
+    for (int j=0; j<dcmps[XB].nx2; ++j) {
+      for (int i=0; i<dcmps[XB].nx1; ++i) {
         int idx2 = i + dcmps[XB].nx1*j;
         int idx = i + dcmps[XB].nx1*(j + dcmps[XB].nx2*(dcmps[XB].nx3-1));
-        sigma[TOP][idx2] = ((Real*)out_)[idx]*normfac1;
+        sigma[TOP][idx2] = reinterpret_cast<Real*>(out_)[idx]*normfac1;
       }
     }
   }
   if (dcmps[XB].ks == 0) {
-    for (int j=0;j<dcmps[XB].nx2;++j) {
-      for (int i=0;i<dcmps[XB].nx1;++i) {
+    for (int j=0; j<dcmps[XB].nx2; ++j) {
+      for (int i=0; i<dcmps[XB].nx1; ++i) {
         int idx2 = i + dcmps[XB].nx1*j;
         int idx = i + dcmps[XB].nx1*(j + dcmps[XB].nx2*(0));
-        sigma[BOT][idx2] = ((Real*)out_)[idx]*normfac1;
+        sigma[BOT][idx2] = reinterpret_cast<Real*>(out_)[idx]*normfac1;
       }
     }
   }
   if (dcmps[XB].is == 0) {
-    for (int k=0;k<dcmps[XB].nx3;++k) {
-      for (int j=0;j<dcmps[XB].nx2;++j) {
+    for (int k=0; k<dcmps[XB].nx3; ++k) {
+      for (int j=0; j<dcmps[XB].nx2; ++j) {
         int idx2 = j + dcmps[XB].nx2*k;
         int idx = 0 + dcmps[XB].nx1*(j + dcmps[XB].nx2*k);
-        sigma[INN][idx2] = ((Real*)out_)[idx]*normfac2;
+        sigma[INN][idx2] = reinterpret_cast<Real*>(out_)[idx]*normfac2;
       }
     }
   }
   if (dcmps[XB].ie == Nx1-1) {
-    for (int k=0;k<dcmps[XB].nx3;++k) {
-      for (int j=0;j<dcmps[XB].nx2;++j) {
+    for (int k=0; k<dcmps[XB].nx3; ++k) {
+      for (int j=0; j<dcmps[XB].nx2; ++j) {
         int idx2 = j + dcmps[XB].nx2*k;
         int idx = dcmps[XB].nx1-1 + dcmps[XB].nx1*(j + dcmps[XB].nx2*k);
-        sigma[OUT][idx2] = ((Real*)out_)[idx]*normfac3;
+        sigma[OUT][idx2] = reinterpret_cast<Real*>(out_)[idx]*normfac3;
       }
     }
   }
 }
 
-void OBCGravityCyl::CalcBndPot()
-{
+void OBCGravityCyl::CalcBndPot() {
   MPI_Request reqv[4], reqr[4];
   int rootv[] = {0, 0, 0, x1comm_size-1};
   int countv[] = {2*dcmps[Gii].nx2*dcmps[Gii].nx3,
@@ -3841,28 +3948,35 @@ void OBCGravityCyl::CalcBndPot()
                   2*dcmps[Gki].nx2*dcmps[Gki].nx3,
                   2*dcmps[Gkk].nx2*dcmps[Gkk].nx3,
                   2*dcmps[Gkk].nx2*dcmps[Gkk].nx3};
-  for (int i=TOP;i<=OUT;++i) {
-    remap_2d(sigma[i], sigma[i], (Real*)buf_, BndryRmpPlan[i][BLOCK][FFT_LONG]);
+  for (int i=TOP; i<=OUT; ++i) {
+    remap_2d(sigma[i], sigma[i], reinterpret_cast<Real*>(buf_),
+        BndryRmpPlan[i][BLOCK][FFT_LONG]);
     fftw_execute(fft_2d_plan[i][0]);
-    remap_2d((Real*)sigma_fft[i], (Real*)sigma_fft_v[i], (Real*)buf_, BndryRmpPlan[i][FFT_SHORT][SIGv]);
-    MPI_Ibcast((Real*)sigma_fft_v[i], countv[i], MPI_DOUBLE, rootv[i], x1comm, &reqv[i]);
-    remap_2d((Real*)sigma_fft[i], (Real*)sigma_fft_r[i], (Real*)buf_, BndryRmpPlan[i][FFT_SHORT][SIGr]);
-    MPI_Ibcast((Real*)sigma_fft_r[i], countr[i], MPI_DOUBLE, rootr[i], x3comm, &reqr[i]);
+    remap_2d(reinterpret_cast<Real*>(sigma_fft[i]),
+        reinterpret_cast<Real*>(sigma_fft_v[i]), reinterpret_cast<Real*>(buf_),
+        BndryRmpPlan[i][FFT_SHORT][SIGv]);
+    MPI_Ibcast(reinterpret_cast<Real*>(sigma_fft_v[i]), countv[i], MPI_DOUBLE, rootv[i],
+        x1comm, &reqv[i]);
+    remap_2d(reinterpret_cast<Real*>(sigma_fft[i]),
+        reinterpret_cast<Real*>(sigma_fft_r[i]), reinterpret_cast<Real*>(buf_),
+        BndryRmpPlan[i][FFT_SHORT][SIGr]);
+    MPI_Ibcast(reinterpret_cast<Real*>(sigma_fft_r[i]), countr[i], MPI_DOUBLE, rootr[i],
+        x3comm, &reqr[i]);
   }
-  
+
   // Initialize
-  for (int dst=TOP;dst<=BOT;++dst) {
-    for (int j=0;j<dcmps[Gii].nx2;++j) {
-      for (int i=0;i<dcmps[Gii].nx1;++i) {
+  for (int dst=TOP; dst<=BOT; ++dst) {
+    for (int j=0; j<dcmps[Gii].nx2; ++j) {
+      for (int i=0; i<dcmps[Gii].nx1; ++i) {
         int idx = i + dcmps[Gii].nx1*j;
         psi_fft[dst][idx][0] = 0;
         psi_fft[dst][idx][1] = 0;
       }
     }
   }
-  for (int dst=INN;dst<=OUT;++dst) {
-    for (int k=0;k<dcmps[Gki].nx1;++k) {
-      for (int j=0;j<dcmps[Gki].nx2;++j) {
+  for (int dst=INN; dst<=OUT; ++dst) {
+    for (int k=0; k<dcmps[Gki].nx1; ++k) {
+      for (int j=0; j<dcmps[Gki].nx2; ++j) {
         int idx = j + dcmps[Gki].nx2*k;
         psi_fft[dst][idx][0] = 0;
         psi_fft[dst][idx][1] = 0;
@@ -3871,12 +3985,12 @@ void OBCGravityCyl::CalcBndPot()
   }
   // Calculate top/bottom boundary potential
   MPI_Waitall(4, reqv, MPI_STATUSES_IGNORE);
-  for (int dst=TOP;dst<=BOT;++dst) {
-    for (int src=TOP;src<=BOT;++src) {
-      for (int j=0;j<dcmps[Gii].nx2;++j) {
-        for (int i=0;i<dcmps[Gii].nx1;++i) {
+  for (int dst=TOP; dst<=BOT; ++dst) {
+    for (int src=TOP; src<=BOT; ++src) {
+      for (int j=0; j<dcmps[Gii].nx2; ++j) {
+        for (int i=0; i<dcmps[Gii].nx1; ++i) {
           int idx3 = i + dcmps[Gii].nx1*j;
-          for (int ip=0;ip<dcmps[Gii].nx3;++ip) {
+          for (int ip=0; ip<dcmps[Gii].nx3; ++ip) {
             int idx = ip + dcmps[Gii].nx3*(i + dcmps[Gii].nx1*j);
             int idx2 = ip + dcmps[Gii].nx3*j;
             psi_fft[dst][idx3][0] += grf[src][dst][idx][0]*sigma_fft_v[src][idx2][0]
@@ -3887,11 +4001,11 @@ void OBCGravityCyl::CalcBndPot()
         }
       }
     }
-    for (int src=INN;src<=OUT;++src) {
-      for (int j=0;j<dcmps[Gik].nx2;++j) {
-        for (int i=0;i<dcmps[Gik].nx1;++i) {
+    for (int src=INN; src<=OUT; ++src) {
+      for (int j=0; j<dcmps[Gik].nx2; ++j) {
+        for (int i=0; i<dcmps[Gik].nx1; ++i) {
           int idx3 = i + dcmps[Gik].nx1*j;
-          for (int kp=0;kp<dcmps[Gik].nx3;++kp) {
+          for (int kp=0; kp<dcmps[Gik].nx3; ++kp) {
             int idx = kp + dcmps[Gik].nx3*(i + dcmps[Gik].nx1*j);
             int idx2 = kp + dcmps[Gik].nx3*j;
             psi_fft[dst][idx3][0] += grf[src][dst][idx][0]*sigma_fft_v[src][idx2][0]
@@ -3903,31 +4017,31 @@ void OBCGravityCyl::CalcBndPot()
       }
     }
   }
-  if (x3rank == x3comm_size-1) 
-    MPI_Ireduce(MPI_IN_PLACE, (Real*)psi_fft[TOP],
+  if (x3rank == x3comm_size-1)
+    MPI_Ireduce(MPI_IN_PLACE, reinterpret_cast<Real*>(psi_fft[TOP]),
      2*dcmps[Gii].nx2*dcmps[Gii].nx1, MPI_DOUBLE, MPI_SUM, x3comm_size-1,
      x3comm, &reqv[TOP]);
   else
-    MPI_Ireduce((Real*)psi_fft[TOP], (Real*)psi_fft[TOP],
-     2*dcmps[Gii].nx2*dcmps[Gii].nx1, MPI_DOUBLE, MPI_SUM, x3comm_size-1,
-     x3comm, &reqv[TOP]);
-  if (x3rank == 0) 
-    MPI_Ireduce(MPI_IN_PLACE, (Real*)psi_fft[BOT],
+    MPI_Ireduce(reinterpret_cast<Real*>(psi_fft[TOP]),
+        reinterpret_cast<Real*>(psi_fft[TOP]), 2*dcmps[Gii].nx2*dcmps[Gii].nx1,
+        MPI_DOUBLE, MPI_SUM, x3comm_size-1, x3comm, &reqv[TOP]);
+  if (x3rank == 0)
+    MPI_Ireduce(MPI_IN_PLACE, reinterpret_cast<Real*>(psi_fft[BOT]),
      2*dcmps[Gii].nx2*dcmps[Gii].nx1, MPI_DOUBLE, MPI_SUM, 0,
      x3comm, &reqv[BOT]);
   else
-    MPI_Ireduce((Real*)psi_fft[BOT], (Real*)psi_fft[BOT],
-     2*dcmps[Gii].nx2*dcmps[Gii].nx1, MPI_DOUBLE, MPI_SUM, 0,
-     x3comm, &reqv[BOT]);
+    MPI_Ireduce(reinterpret_cast<Real*>(psi_fft[BOT]),
+        reinterpret_cast<Real*>(psi_fft[BOT]), 2*dcmps[Gii].nx2*dcmps[Gii].nx1,
+        MPI_DOUBLE, MPI_SUM, 0, x3comm, &reqv[BOT]);
 
   // Calculate inner/outer boundary potential
   MPI_Waitall(4, reqr, MPI_STATUSES_IGNORE);
-  for (int dst=INN;dst<=OUT;++dst) {
-    for (int src=TOP;src<=BOT;++src) {
-      for (int k=0;k<dcmps[Gki].nx1;++k) {
-        for (int j=0;j<dcmps[Gki].nx2;++j) {
+  for (int dst=INN; dst<=OUT; ++dst) {
+    for (int src=TOP; src<=BOT; ++src) {
+      for (int k=0; k<dcmps[Gki].nx1; ++k) {
+        for (int j=0; j<dcmps[Gki].nx2; ++j) {
           int idx3 = j + dcmps[Gki].nx2*k;
-          for (int ip=0;ip<dcmps[Gki].nx3;++ip) {
+          for (int ip=0; ip<dcmps[Gki].nx3; ++ip) {
             int idx = ip + dcmps[Gki].nx3*(j + dcmps[Gki].nx2*k);
             int idx2 = ip + dcmps[Gki].nx3*j;
             psi_fft[dst][idx3][0] += grf[src][dst][idx][0]*sigma_fft_r[src][idx2][0]
@@ -3938,11 +4052,11 @@ void OBCGravityCyl::CalcBndPot()
         }
       }
     }
-    for (int src=INN;src<=OUT;++src) {
-      for (int k=0;k<dcmps[Gkk].nx1;++k) {
-        for (int j=0;j<dcmps[Gkk].nx2;++j) {
+    for (int src=INN; src<=OUT; ++src) {
+      for (int k=0; k<dcmps[Gkk].nx1; ++k) {
+        for (int j=0; j<dcmps[Gkk].nx2; ++j) {
           int idx3 = j + dcmps[Gkk].nx2*k;
-          for (int kp=0;kp<dcmps[Gkk].nx3;++kp) {
+          for (int kp=0; kp<dcmps[Gkk].nx3; ++kp) {
             int idx = kp + dcmps[Gkk].nx3*(j + dcmps[Gkk].nx2*k);
             int idx2 = kp + dcmps[Gkk].nx3*j;
             psi_fft[dst][idx3][0] += grf[src][dst][idx][0]*sigma_fft_r[src][idx2][0]
@@ -3954,123 +4068,125 @@ void OBCGravityCyl::CalcBndPot()
       }
     }
   }
-  if (x1rank == 0) 
-    MPI_Ireduce(MPI_IN_PLACE, (Real*)psi_fft[INN],
+  if (x1rank == 0)
+    MPI_Ireduce(MPI_IN_PLACE, reinterpret_cast<Real*>(psi_fft[INN]),
     2*dcmps[Gki].nx2*dcmps[Gki].nx1, MPI_DOUBLE, MPI_SUM, 0,
     x1comm, &reqv[INN]);
-  else 
-    MPI_Ireduce((Real*)psi_fft[INN], (Real*)psi_fft[INN],
-    2*dcmps[Gki].nx2*dcmps[Gki].nx1, MPI_DOUBLE, MPI_SUM, 0,
-    x1comm, &reqv[INN]);
-  if (x1rank == x1comm_size-1) 
-    MPI_Ireduce(MPI_IN_PLACE, (Real*)psi_fft[OUT],
+  else
+    MPI_Ireduce(reinterpret_cast<Real*>(psi_fft[INN]),
+        reinterpret_cast<Real*>(psi_fft[INN]), 2*dcmps[Gki].nx2*dcmps[Gki].nx1,
+        MPI_DOUBLE, MPI_SUM, 0, x1comm, &reqv[INN]);
+  if (x1rank == x1comm_size-1)
+    MPI_Ireduce(MPI_IN_PLACE, reinterpret_cast<Real*>(psi_fft[OUT]),
     2*dcmps[Gki].nx2*dcmps[Gki].nx1, MPI_DOUBLE, MPI_SUM, x1comm_size-1,
     x1comm, &reqv[OUT]);
-  else 
-    MPI_Ireduce((Real*)psi_fft[OUT], (Real*)psi_fft[OUT],
-    2*dcmps[Gki].nx2*dcmps[Gki].nx1, MPI_DOUBLE, MPI_SUM, x1comm_size-1,
-    x1comm, &reqv[OUT]);
+  else
+    MPI_Ireduce(reinterpret_cast<Real*>(psi_fft[OUT]),
+        reinterpret_cast<Real*>(psi_fft[OUT]), 2*dcmps[Gki].nx2*dcmps[Gki].nx1,
+        MPI_DOUBLE, MPI_SUM, x1comm_size-1, x1comm, &reqv[OUT]);
 
-  for (int i=TOP;i<=OUT;++i) {
+  for (int i=TOP; i<=OUT; ++i) {
     MPI_Wait(&reqv[i], MPI_STATUSES_IGNORE);
-    remap_2d((Real*)psi_fft[i], (Real*)psi_fft[i], (Real*)buf_, BndryRmpPlan[i][PSI][FFT_SHORT]);
+    remap_2d(reinterpret_cast<Real*>(psi_fft[i]), reinterpret_cast<Real*>(psi_fft[i]),
+        reinterpret_cast<Real*>(buf_), BndryRmpPlan[i][PSI][FFT_SHORT]);
     fftw_execute(fft_2d_plan[i][1]);
-    remap_2d(psi[i], psi[i], (Real*)buf_, BndryRmpPlan[i][FFT_LONG][BLOCK]);
+    remap_2d(psi[i], psi[i], reinterpret_cast<Real*>(buf_),
+        BndryRmpPlan[i][FFT_LONG][BLOCK]);
   }
   Real normfac1 = 1.0 / (four_pi_G*dx3_*dx3_);
   Real normfac2, normfac3;
   if (rat == 1.0) {
-    normfac2 = (1.0 / SQR(dx1v_(0+NGHOST)) - 0.5/dx1v_(0+NGHOST)/x1v_(0+NGHOST)) / four_pi_G;
-    normfac3 = (1.0 / SQR(dx1v_(Nx1-1+NGHOST)) + 0.5/dx1v_(Nx1-1+NGHOST)/x1v_(Nx1-1+NGHOST)) / four_pi_G;
-  }
-  else {
+    normfac2 = (1.0 / SQR(dx1v_(0+NGHOST)) - 0.5/dx1v_(0+NGHOST)/x1v_(0+NGHOST))
+      / four_pi_G;
+    normfac3 = (1.0 / SQR(dx1v_(Nx1-1+NGHOST))
+        + 0.5/dx1v_(Nx1-1+NGHOST)/x1v_(Nx1-1+NGHOST)) / four_pi_G;
+  } else {
     normfac2 = SQR( 1.0 / std::log(rat) / x1v_(0+NGHOST)     ) / four_pi_G;
     normfac3 = SQR( 1.0 / std::log(rat) / x1v_(Nx1-1+NGHOST) ) / four_pi_G;
   }
   if (dcmps[XB].ke == Nx3-1) {
-    for (int j=0;j<dcmps[XB].nx2;++j) {
-      for (int i=0;i<dcmps[XB].nx1;++i) {
+    for (int j=0; j<dcmps[XB].nx2; ++j) {
+      for (int i=0; i<dcmps[XB].nx1; ++i) {
         int idx2 = i + dcmps[XB].nx1*j;
         int idx = i + dcmps[XB].nx1*(j + dcmps[XB].nx2*(dcmps[XB].nx3-1));
         psi[TOP][idx2] /= Nx2;
-        ((Real*)in_)[idx] += psi[TOP][idx2]*normfac1;
+        reinterpret_cast<Real*>(in_)[idx] += psi[TOP][idx2]*normfac1;
       }
     }
   }
   if (dcmps[XB].ks == 0) {
-    for (int j=0;j<dcmps[XB].nx2;++j) {
-      for (int i=0;i<dcmps[XB].nx1;++i) {
+    for (int j=0; j<dcmps[XB].nx2; ++j) {
+      for (int i=0; i<dcmps[XB].nx1; ++i) {
         int idx2 = i + dcmps[XB].nx1*j;
         int idx = i + dcmps[XB].nx1*(j + dcmps[XB].nx2*(0));
         psi[BOT][idx2] /= Nx2;
-        ((Real*)in_)[idx] += psi[BOT][idx2]*normfac1;
+        reinterpret_cast<Real*>(in_)[idx] += psi[BOT][idx2]*normfac1;
       }
     }
   }
   if (dcmps[XB].is == 0) {
-    for (int k=0;k<dcmps[XB].nx3;++k) {
-      for (int j=0;j<dcmps[XB].nx2;++j) {
+    for (int k=0; k<dcmps[XB].nx3; ++k) {
+      for (int j=0; j<dcmps[XB].nx2; ++j) {
         int idx2 = j + dcmps[XB].nx2*k;
         int idx = 0 + dcmps[XB].nx1*(j + dcmps[XB].nx2*k);
         psi[INN][idx2] /= Nx2;
-        ((Real*)in_)[idx] += psi[INN][idx2]*normfac2;
+        reinterpret_cast<Real*>(in_)[idx] += psi[INN][idx2]*normfac2;
       }
     }
   }
   if (dcmps[XB].ie == Nx1-1) {
-    for (int k=0;k<dcmps[XB].nx3;++k) {
-      for (int j=0;j<dcmps[XB].nx2;++j) {
+    for (int k=0; k<dcmps[XB].nx3; ++k) {
+      for (int j=0; j<dcmps[XB].nx2; ++j) {
         int idx2 = j + dcmps[XB].nx2*k;
         int idx = dcmps[XB].nx1-1 + dcmps[XB].nx1*(j + dcmps[XB].nx2*k);
         psi[OUT][idx2] /= Nx2;
-        ((Real*)in_)[idx] += psi[OUT][idx2]*normfac3;
+        reinterpret_cast<Real*>(in_)[idx] += psi[OUT][idx2]*normfac3;
       }
     }
   }
 }
 
-void OBCGravityCyl::RetrieveResult(AthenaArray<Real> &dst)
-{
+void OBCGravityCyl::RetrieveResult(AthenaArray<Real> &dst) {
   int is, ie, js, je, ks, ke;
   int idx;
   is = pmy_block->is; js = pmy_block->js; ks = pmy_block->ks;
   ie = pmy_block->ie; je = pmy_block->je; ke = pmy_block->ke;
 
-  for (int k=ks;k<=ke;++k) {
-    for (int j=js;j<=je;++j) {
-      for (int i=is;i<=ie;++i) {
+  for (int k=ks; k<=ke; ++k) {
+    for (int j=js; j<=je; ++j) {
+      for (int i=is; i<=ie; ++i) {
         idx = (i-is) + dcmps[XB].nx1*((j-js) + dcmps[XB].nx2*(k-ks));
-        dst(k,j,i) = ((Real*)out_)[idx];
+        dst(k,j,i) = reinterpret_cast<Real*>(out_)[idx];
       }
     }
   }
   if (dcmps[XB].ke == Nx3-1) {
-    for (int j=0;j<dcmps[XB].nx2;++j) {
-      for (int i=0;i<dcmps[XB].nx1;++i) {
+    for (int j=0; j<dcmps[XB].nx2; ++j) {
+      for (int i=0; i<dcmps[XB].nx1; ++i) {
         int idx2 = i + dcmps[XB].nx1*j;
         dst(ke+1,j+js,i+is) = -psi[TOP][idx2];
       }
     }
   }
   if (dcmps[XB].ks == 0) {
-    for (int j=0;j<dcmps[XB].nx2;++j) {
-      for (int i=0;i<dcmps[XB].nx1;++i) {
+    for (int j=0; j<dcmps[XB].nx2; ++j) {
+      for (int i=0; i<dcmps[XB].nx1; ++i) {
         int idx2 = i + dcmps[XB].nx1*j;
         dst(ks-1,j+js,i+is) = -psi[BOT][idx2];
       }
     }
   }
   if (dcmps[XB].is == 0) {
-    for (int k=0;k<dcmps[XB].nx3;++k) {
-      for (int j=0;j<dcmps[XB].nx2;++j) {
+    for (int k=0; k<dcmps[XB].nx3; ++k) {
+      for (int j=0; j<dcmps[XB].nx2; ++j) {
         int idx2 = j + dcmps[XB].nx2*k;
         dst(k+ks,j+js,is-1) = -psi[INN][idx2];
       }
     }
   }
   if (dcmps[XB].ie == Nx1-1) {
-    for (int k=0;k<dcmps[XB].nx3;++k) {
-      for (int j=0;j<dcmps[XB].nx2;++j) {
+    for (int k=0; k<dcmps[XB].nx3; ++k) {
+      for (int j=0; j<dcmps[XB].nx2; ++j) {
         int idx2 = j + dcmps[XB].nx2*k;
         dst(k+ks,j+js,ie+1) = -psi[OUT][idx2];
       }

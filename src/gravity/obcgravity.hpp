@@ -9,24 +9,30 @@
 //! \file athena_fft.hpp
 //  \brief defines FFT class which implements parallel FFT using MPI/OpenMP
 
+// C headers
+
+// C++ headers
+#include <iostream>
+
 // Athena++ classes headers
 #include "../athena.hpp"
-#include "../globals.hpp"
 #include "../athena_arrays.hpp"
+#include "../globals.hpp"
 #include "../mesh/mesh.hpp"
 #include "../mesh/meshblock_tree.hpp"
 #include "../task_list/fft_grav_task_list.hpp"
 #include "gravity.hpp"
 
-#include <iostream>
-
 #ifdef FFT
-#include "fftw3.h"
-
+#include <fftw3.h>
 #ifdef MPI_PARALLEL
-#include "mpi.h"
-#include "../fft/plimpton/fft_3d.h"
+#include <mpi.h>
 #include "../fft/plimpton/fft_2d.h"
+#include "../fft/plimpton/fft_3d.h"
+#include "../fft/plimpton/pack_2d.h"
+#include "../fft/plimpton/pack_3d.h"
+#include "../fft/plimpton/remap_2d.h"
+#include "../fft/plimpton/remap_3d.h"
 #endif // MPI_PARALLEL
 #endif // FFT
 
@@ -59,7 +65,7 @@ typedef struct DomainDecomp {
 //  \brief OBC driver
 
 class OBCGravityDriver {
-public:
+ public:
   OBCGravityDriver(Mesh *pm, ParameterInput *pin);
   ~OBCGravityDriver();
 
@@ -67,24 +73,26 @@ public:
   OBCGravityCyl *pmy_og_cyl;
   void Solve(int stage);
 
-protected:
+ protected:
   Mesh *pmy_mesh_;
 
-private:
+ private:
   FFTGravitySolverTaskList *gtlist_;
 };
 
 
 //! \class OBCGravityCar
-//  \brief 
+//  \brief
 
 class OBCGravityCar : public Gravity {
-public:
+ public:
   OBCGravityCar(OBCGravityDriver *pcd, MeshBlock *pmb, ParameterInput *pin);
   ~OBCGravityCar();
 
-  void BndFFTForward(int first_nslow, int first_nfast, int second_nslow, int second_nfast, int B);
-  void BndFFTBackward(int first_nslow, int first_nfast, int second_nslow, int second_nfast, int B);
+  void BndFFTForward(int first_nslow, int first_nfast, int second_nslow,
+      int second_nfast,int B);
+  void BndFFTBackward(int first_nslow, int first_nfast, int second_nslow,
+      int second_nfast, int B);
   void FillDscGrf();
   void FillCntGrf();
   void LoadSource(const AthenaArray<Real> &src);
@@ -93,7 +101,7 @@ public:
   void CalcBndPot();
   void RetrieveResult(AthenaArray<Real> &dst);
 
-protected:
+ protected:
   int Nx1,Nx2,Nx3,nx1,nx2,nx3;
   int x1rank,x2rank,x3rank,x1comm_size,x2comm_size,x3comm_size;
   int np1,np2,np3;
@@ -113,14 +121,13 @@ protected:
   struct remap_plan_2d *BndryRmpPlan[6][3][3];
   struct remap_plan_3d *RmpPlan[12][12];
   MPI_Comm bndcomm[6],x1comm,x2comm,x3comm;
-private:
 };
 
 //! \class OBCGravityCyl
-//  \brief 
+//  \brief
 
 class OBCGravityCyl : public Gravity {
-public:
+ public:
   OBCGravityCyl(OBCGravityDriver *pcd, MeshBlock *pmb, ParameterInput *pin);
   ~OBCGravityCyl();
 
@@ -133,7 +140,7 @@ public:
   void CalcBndPot();
   void RetrieveResult(AthenaArray<Real> &dst);
 
-protected:
+ protected:
   int Nx1,Nx2,Nx3,nx1,nx2,nx3,lNx1,lNx3,hNx2,hnx2;
   int x1rank, x3rank, x1comm_size, x3comm_size;
   int np1,np2,np3;
@@ -160,7 +167,7 @@ protected:
   struct remap_plan_3d *RmpPlan[26][26];
   MPI_Comm bndcomm[4],x1comm,x3comm;
 
-private:
+ private:
   int ng_, noffset1_, noffset2_, ngh_grf_, pfold_;
 };
 

@@ -38,7 +38,6 @@ void HydroSourceTerms::SelfGravity(const Real dt,const AthenaArray<Real> *flux,
   Gravity *pgrav = pmb->pgrav;
 
   if (std::strcmp(COORDINATE_SYSTEM, "cartesian") == 0) {
-
     // acceleration in 1-direction
     for (int k=pmb->ks; k<=pmb->ke; ++k) {
       for (int j=pmb->js; j<=pmb->je; ++j) {
@@ -56,7 +55,7 @@ void HydroSourceTerms::SelfGravity(const Real dt,const AthenaArray<Real> *flux,
         }
       }
     }
-  
+
     if (pmb->block_size.nx2 > 1) {
       // acceleration in 2-direction
       for (int k=pmb->ks; k<=pmb->ke; ++k) {
@@ -76,7 +75,7 @@ void HydroSourceTerms::SelfGravity(const Real dt,const AthenaArray<Real> *flux,
         }
       }
     }
-  
+
     if (pmb->block_size.nx3 > 1) {
       // acceleration in 3-direction
       for (int k=pmb->ks; k<=pmb->ke; ++k) {
@@ -99,7 +98,6 @@ void HydroSourceTerms::SelfGravity(const Real dt,const AthenaArray<Real> *flux,
   }
 
   if (std::strcmp(COORDINATE_SYSTEM, "cylindrical") == 0) {
-
     Real rat = pmb->block_size.x1rat;
     Real irat = 1.0 / rat;
 
