@@ -2205,7 +2205,24 @@ OBCGravityCyl::OBCGravityCyl(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
   np2 = Nx2/nx2;
   np3 = Nx3/nx3;
   rat = mesh_size.x1rat;
-  ng_ = std::min(16, Nx1/4); // TODO(SMOON) for uniform grid?
+  if (rat == 1.0) { // uniform spacing
+    // for uniform grid, pad 16 cells inside the inner boundary, and
+    // remaining (Nx1-16) cells outside the outer boundary
+    ng_ = Nx1 - 16;
+    if (mesh_size.x1max/mesh_size.x1min > 1 + static_cast<Real>(Nx1)/16.) {
+      std::stringstream msg;
+      msg << "### FATAL ERROR in OBCGravityCyl" << std::endl
+          << "For the extended inner boundary > 0, the condition Rmax/Rmin < 1 + Nx1/16"
+          << " must be satisfied (See the last paragraph of Appendix B in Moon et al. 2019)"
+          << std::endl;
+      ATHENA_ERROR(msg);
+    }
+  } else { // logarithmic spacing
+    // for logarithmic grid, pad 16 cells outside the outer boundary, and
+    // remaining (Nx1-16) cells inside the inner boundary
+    ng_ = 16;
+  }
+
   ngh_grf_ = 16;
   noffset1_ = lNx1-Nx1-ng_;
   noffset2_ = ngh_grf_;
@@ -2668,7 +2685,6 @@ OBCGravityCyl::OBCGravityCyl(OBCGravityDriver *pod, MeshBlock *pmb, ParameterInp
          << "np2d1 = " << np2d1 << " np2d2 = " << np2d2 << std::endl;
     ATHENA_ERROR(msg);
   }
-
 
   // allocate arrays
   int ncells = dcmps[X1P].nx1 + 2*NGHOST;
