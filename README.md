@@ -13,12 +13,11 @@ https://github.com/PrincetonUniversity/athena
 James Open BC self-gravity
 ======
 
-Implementation of the James algorithm on the public version of Athena++.
-
-Enables self-gravity with open boundary condition in either Cartesian or **cylindrical** coordinates (in 3-D).
-
-Method paper:  **[Moon, Kim, & Ostriker (2019)](https://ui.adsabs.harvard.edu/abs/2019ApJS..241...24M/abstract)**.
+This folk implements the James algorithm based on [Moon, Kim, & Ostriker (2019)](https://ui.adsabs.harvard.edu/abs/2019ApJS..241...24M/abstract) to enable self-gravity with open boundary conditions in three-dimensional Cartesian or cylindrical coordinates.
 
 ### Usage                                                                                  
 * To activate open BC self-gravity, compile with `--grav=obc -fft -mpi`                     
-* Note that the serial version is not implemented; if you want to run with single core, do $mpirun -np 1
+* Serial version is not implemented. Compile with `-mpi` flag even when you use just a single core.
+
+### Restrictions
+Because the current parallel FFT interface requires Mesh to be evenly divisible for both the block and pencil decompositions, the solver may not work for certain number of cells or MeshBlock decompositions. In addition, the James algorithm involves FFTs acting only on surfaces, which add complications on the possible decompositions. **The easiest way to meet all the requirements is to set the number of cells and MeshBlocks in each direction as powers of two.**
