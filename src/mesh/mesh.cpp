@@ -849,16 +849,6 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
     return;
   }
 
-  if (SELF_GRAVITY_ENABLED == 1) {
-    gflag = 1; // set gravity flag
-    pfgrd = new FFTGravityDriver(this, pin);
-  } else if (SELF_GRAVITY_ENABLED == 2) {
-    // MGDriver must be initialzied before MeshBlocks
-    pmgrd = new MGGravityDriver(this, pin);
-  } else if (SELF_GRAVITY_ENABLED==3) {
-    gflag = 1; // set gravity flag
-    pogrd = new OBCGravityDriver(this, pin);
-  }
 
   //  if (SELF_GRAVITY_ENABLED == 2 && ...) // independent allocation
   //    gflag=2;
@@ -892,6 +882,17 @@ Mesh::Mesh(ParameterInput *pin, IOWrapper& resfile, int mesh_test) :
         << "The restart file is broken or input parameters are inconsistent."
         << std::endl;
     ATHENA_ERROR(msg);
+  }
+
+  if (SELF_GRAVITY_ENABLED == 1) {
+    gflag = 1; // set gravity flag
+    pfgrd = new FFTGravityDriver(this, pin);
+  } else if (SELF_GRAVITY_ENABLED == 2) {
+    // MGDriver must be initialzied before MeshBlocks
+    pmgrd = new MGGravityDriver(this, pin);
+  } else if (SELF_GRAVITY_ENABLED==3) {
+    gflag = 1; // set gravity flag
+    pogrd = new OBCGravityDriver(this, pin);
   }
 
   ResetLoadBalanceVariables();
