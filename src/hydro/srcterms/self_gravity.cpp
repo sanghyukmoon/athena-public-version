@@ -124,7 +124,7 @@ void HydroSourceTerms::SelfGravity(const Real dt,const AthenaArray<Real> *flux,
         for (int j=pmb->js; j<=pmb->je; ++j) {
 #pragma omp simd
           for (int i=pmb->is; i<=pmb->ie; ++i) {
-            Real dx2 = pmb->pcoord->x1v(i)* pmb->pcoord->dx2v(j);
+            Real dx2 = pmb->pcoord->x1v(i)*pmb->pcoord->dx2v(j);
             Real phil = pgrav->phi(k,j-1,i);
             Real phir = pgrav->phi(k,j+1,i);
             Real gx2 = (phil-phir)/2.0/dx2;
